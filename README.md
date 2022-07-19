@@ -1,6 +1,6 @@
 ![rust](https://img.shields.io/badge/rustc-1.57%2B-green?style=plastic)![GitHub](https://img.shields.io/github/license/datamallchain/dmchain_contract)
 
-[Chinese](./README.zh-CN.md)
+[Chinese](./README.zh_CN.md)
 
 DMC DSG Miner is a file storage mining program based on [CYFS](https://github.com/buckyos/CYFS) and DMC chain. Users can use it to provide storage services to other users and obtain DMC income. It is a A DEC App on the CYFS platform, CYFS OOD and CYFS Browser must be installed and activated before using it.
 
