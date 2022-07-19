@@ -1,0 +1,22 @@
+[package]
+name = "dmc-dsg-miner-cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dmc-dsg-base = {path="../dmc-dsg-base"}
+async-std ={ version = "1.8", features = ["std"]}
+cyfs-base= "0.5"
+cyfs-lib = "0.5"
+cyfs-chunk-lib = "0.5"
+cyfs-util = "0.5"
+cyfs-debug = "0.5"
+cyfs-core = "0.5"
+clap = "2.34.0"
+log = "=0.4"
+config = "0.13"
+dirs = "4.0.0"
+serde = "1.0.137"
+serde_json = "1.0.81"

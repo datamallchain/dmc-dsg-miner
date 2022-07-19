@@ -1,0 +1,37 @@
+[package]
+name = "dmc-dsg-base"
+version = "0.1.0"
+edition = "2021"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "=0.4"
+cyfs-base = "0.5.0"
+async-std = { version = "*", features = ["attributes"] }
+cyfs-lib = "0.5.0"
+cyfs-chunk-lib = "0.5.0"
+cyfs-util = "0.5.0"
+async-trait = "0.1.53"
+lru_time_cache = "0.11.11"
+lazy_static = "1.4.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+libsecp256k1 = "0.7.0"
+rand = "0.8.5"
+base58 = "0.2.0"
+ripemd = "0.1.1"
+sha2 = "0.10.2"
+tide = "0.16.0"
+md5 = "0.7.0"
+async-h1 = "2.3.3"
+json = "0.12.4"
+base64 = "0.13.0"
+regex = "1.5.5"
+futures = "0.3.21"
+chrono = "0.4.19"
+hex = "0.4.3"
+flate2 = "1.0.23"
+prost = {version = "0.9"}
+
+[build-dependencies]
+prost-build = {version = "0.9"}

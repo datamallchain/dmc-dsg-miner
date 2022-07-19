@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+message DMCContractData {
+  string order_id = 1;
+  string miner_dmc_account = 2;
+  optional bytes merkle_root = 3;
+  optional uint32 chunk_size = 4;
+}

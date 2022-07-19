@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+
+members = [
+	"./dmc-dsg-base",
+	"./dmc-dsg-miner",
+	"./dmc-dsg-miner-cli"
+	]
