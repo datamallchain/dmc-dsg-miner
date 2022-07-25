@@ -51,7 +51,7 @@ async fn main() {
         .start();
 
     let mut config = ConfigBuilder::<DefaultState>::default()
-        .set_default("dmc_server", "http://154.39.158.47:8870").unwrap()
+        .set_default("dmc_server", "http://154.22.122.40:8870").unwrap()
         .build().unwrap();
     let data_dir = get_app_data_dir(DMCDsgConfig::APP_NAME);
     let config_path = data_dir.join("config.toml");
