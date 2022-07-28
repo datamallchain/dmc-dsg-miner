@@ -101,7 +101,7 @@ pub struct TransactionTrace {
     pub account_ram_delta: Option<AccountDelta>,
     pub except: Option<String>,
     pub error_code: Option<String>,
-    pub bill_to_accounts: Vec<String>,
+    pub bill_to_accounts: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -414,7 +414,7 @@ pub struct BlockSigningAuthority {
 #[derive(Serialize, Deserialize)]
 pub struct ProducerAuthority {
     producer_name: String,
-    authority: (String, BlockSigningAuthority)
+    authority: (i64, BlockSigningAuthority)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -452,10 +452,10 @@ pub struct GetBlockHeaderStateResult {
     pub dpos_irreversible_blocknum: i64,
     pub active_schedule: ProducerAuthoritySchedule,
     pub blockroot_merkle: IncrementalMerkle,
-    pub producer_to_last_produced: HashMap<String, i64>,
-    pub producer_to_last_implied_irb: HashMap<String, i64>,
+    pub producer_to_last_produced: Vec<(String, i64)>,
+    pub producer_to_last_implied_irb: Vec<(String, i64)>,
     pub confirm_count: Vec<i64>,
-    pub state_extension: (i64, StateExtension),
+    pub state_extension: Option<(i64, StateExtension)>,
 }
 
 #[derive(Serialize, Deserialize)]
