@@ -1,5 +1,5 @@
 
-use std::{path::PathBuf, sync::Arc, time::Duration, collections::{BTreeSet}};
+use std::{path::PathBuf, sync::Arc, time::Duration, collections::{BTreeSet, BTreeMap, HashSet}};
 use async_std::{task::{sleep,spawn}};
 use cyfs_base::*;
 use cyfs_lib::*;
@@ -30,10 +30,11 @@ impl MinerChallenge {
     pub async fn challenge(&self, interface: &DsgMinerInterface, contract_id: &ObjectId, state_id: &ObjectId, challenge: &DsgChallengeObject, owner_id: &ObjectId) -> BuckyResult<()> {
         info!("start challenge");
         match self.meta_store.get_down_status(contract_id).await? {
-            DownStatus::Proof => {
+            SyncStatus::Proof => {
                 let state: DsgContractStateObject = self.get_object(Some(owner_id.clone()), state_id.clone()).await?;
                 
                 let state_ref = DsgContractStateObjectRef::from(&state);
+                let mut is_add_chunk = false;
                 match state_ref.state() {
                     DsgContractState::Initial => {
                         info!("Initial");
@@ -42,12 +43,14 @@ impl MinerChallenge {
                     DsgContractState::ContractBroken => {info!("ContractBroken");},
                     DsgContractState::ContractExecuted => {info!("ContractExecuted");},
                     DsgContractState::DataSourcePrepared(c) => {
-                        let v = c.chunks.clone();
-                        info!("DataSourcePrepared {:?}", v);
+                        let chunk_list = c.chunks.clone();
+                        info!("DataSourcePrepared {:?}", chunk_list);
+                        is_add_chunk = self.check_chunks_sync_state(contract_id, chunk_list).await?;
                     },
                     DsgContractState::DataSourceChanged(c) => {
-                        let v = c.chunks.clone();
-                        info!("DataSourceChanged {:?}", v);
+                        let chunk_list = c.chunks.clone();
+                        info!("DataSourceChanged {:?}", chunk_list);
+                        is_add_chunk = self.check_chunks_sync_state(contract_id, chunk_list).await?;
                     },
                     DsgContractState::DataSourceStored => {
                         info!("DataSourceStored");
@@ -58,8 +61,11 @@ impl MinerChallenge {
                 self.meta_store.save_challenge(contract_id, challenge).await?;
                 //self.save_chunks(contract_id, &state).await?;
 
-                self.to_challenge(interface, contract_id, challenge, owner_id).await?;
-                info!("{} challenge success", contract_id);
+                if !is_add_chunk {
+                    self.to_challenge(interface, contract_id, challenge, owner_id).await?;
+                    info!("{} challenge success", contract_id);
+                }
+                
             },
             _ => {
                 info!("wait sync chunks");
@@ -67,6 +73,75 @@ impl MinerChallenge {
         }
 
         Ok(())
+    }
+
+    pub async fn check_chunks_sync_state(&self, contract_id: &ObjectId, chunk_list: Vec<ChunkId>) -> BuckyResult<bool> {
+        let (is_mut_size, out_size) = self.check_contract_size(contract_id, chunk_list.clone()).await?;
+        if is_mut_size && out_size {
+            return Err(BuckyError::from("chunk total size out of contract limit"));
+        }
+
+        let mut cur_cks = HashSet::new();
+        cur_cks.extend(chunk_list.clone());
+
+        let list = self.meta_store.get_chunk_list(contract_id).await?;
+        let mut old_cks = HashSet::new();
+        old_cks.extend(list.clone());
+
+        let mut is_change = false;
+        let new_sync_chunks = cur_cks.difference(&old_cks).cloned().collect::<Vec<_>>();
+        if new_sync_chunks.len() > 0 {
+            is_change = true;
+        }
+
+        let del_chunks_list = old_cks.difference(&cur_cks).cloned().collect::<Vec<_>>();
+        if del_chunks_list.len() > 0 {
+            is_change = true;
+            for chunk_id in &del_chunks_list {
+                if let Err(e) = self.meta_store.chunk_ref_del(contract_id, chunk_id).await {
+                    error!("chunk ref del err: {:?}", e);
+                }
+                if let Err(e) = self.meta_store.chunk_del_list_add(chunk_id).await {
+                    error!("del list add err: {:?}", e);
+                }
+            }
+        }
+
+        if is_change {
+            self.meta_store.save_chunk_list(contract_id, chunk_list).await?;
+        }
+
+        let mut is_add_chunk = false;
+        if new_sync_chunks.len() > 0 {
+            if let Err(e) = self.meta_store.update_down_status(&contract_id, SyncStatus::Wait).await {
+                error!("change down status err: {:?}", e);
+            }
+            is_add_chunk = true;
+        }
+        
+        Ok(is_add_chunk)
+    }
+
+    pub async fn check_contract_size(&self, contract_id: &ObjectId, chunk_list: Vec<ChunkId>) -> BuckyResult<(bool, bool)> {
+        let contract: DsgContractObject<DMCContractData> = self.meta_store.get(contract_id).await?;
+        let contract_ref = DsgContractObjectRef::from(&contract);
+        let ds = contract_ref.data_source();
+        let mut is_mut_size = false;
+        match ds {
+            DsgDataSource::Mutable(all_size) => {
+                is_mut_size = true;
+                let mut clen = 0;
+                for chunk in chunk_list {
+                    clen = chunk.len();
+                }
+                if (clen as u64) < all_size.clone() {
+                    return Ok((is_mut_size, true));
+                }
+            },
+            _ => ()
+        }
+
+        Ok((is_mut_size, false))
     }
 
     pub async fn first_sync_contract(&self, _interface: &DsgMinerInterface, contract_id: &ObjectId, state_id: &ObjectId, challenge: &DsgChallengeObject, owner_id: &ObjectId) -> BuckyResult<()> {
@@ -142,9 +217,10 @@ impl MinerChallenge {
 
     pub async fn sync_chunk_data(&self) {
         let meta_store = self.meta_store.clone();
-        let data_store = self.raw_data_store.clone();
         let stack = self.stack.clone();
         let dmc = self.dmc.clone();
+
+        self.start_repair_sync_chunk_data().await;
 
         spawn( async move {
             loop {
@@ -152,42 +228,139 @@ impl MinerChallenge {
                 match meta_store.get_wait_sync().await {
                     Ok(vecs) => {
                         for (chunk_list, contract_id, owner_id) in vecs {
-                            info!("start sync contract: {}", &contract_id);
-                            let mut cdstat = true;
 
-                            for chunk_id in &chunk_list {
-                                info!("start sync chunk: {}", &chunk_id);
-                                match data_store.chunk_exists(&chunk_id).await {
-                                    false => {
-                                        if let Err(e) = Self::sync_chunk_to_local(stack.clone(), &chunk_id, vec![DeviceId::try_from(owner_id.clone()).unwrap()]).await {
-                                            error!("sync chunk {} to local err: {}", &chunk_id, e);
-                                            cdstat = false;
-                                        }
-                                    },
-                                    _ =>{
-                                        info!("chunk: {} exists", &chunk_id);
-                                        ()
-                                    }
-                                }
-                            }
+                            let meta_store = meta_store.clone();
+                            let stack = stack.clone();
+                            let dmc = dmc.clone();
 
-                            if cdstat {
-                                if let Err(e) = meta_store.update_down_status(&contract_id, DownStatus::Success).await {
+                            spawn( async move {
+
+                                info!("start sync contract: {}", &contract_id);
+                                if let Err(e) = meta_store.update_down_status(&contract_id, SyncStatus::Down).await {
                                     error!("change down status err: {:?}", e);
+                                }
+                                if let Ok(_contract) = meta_store.get(&contract_id).await {
+                                    let mut cdstat = true;
+
+                                    if let Err(e) = Self::sync_chunk_to_local(stack.clone(), &chunk_list, vec![DeviceId::try_from(owner_id.clone()).unwrap()]).await {
+                                        error!("sync chunk to local err {}", e);
+                                        if let Err(e) = meta_store.update_down_status(&contract_id, SyncStatus::Wait).await {
+                                            error!("change down status err: {:?}", e);
+                                        }
+                                        cdstat = false;
+                                    }
+
+                                    if cdstat {
+                                        if let Err(e) = dmc.report_merkle_hash(&contract_id).await {
+                                            log::error!("report_merkle_hash err {}", e);
+                                        } else {
+                                            if let Err(e) = meta_store.update_down_status(&contract_id, SyncStatus::Success).await {
+                                                error!("change down status err: {:?}", e);
+                                            }
+                                            for chunk_id in &chunk_list {
+                                                if let Err(e) = meta_store.chunk_ref_add(&contract_id, chunk_id).await {
+                                                    info!("add chunk ref err: {:?}", e);
+                                                }
+                                                if let Err(e) = meta_store.chunk_del_list_del(chunk_id).await {
+                                                    info!("add chunk ref err: {:?}", e);
+                                                }
+                                            }
+                                        }
+                                    }
                                 } else {
-                                    /*if let Err(e) = Self::build_merkle_tree(data_store.clone(), &chunk_list, contract_id.clone()).await {
-                                        error!("build merle tree err: {}", e);
-									}*/
-                                    if let Err(e) = dmc.report_merkle_hash(&contract_id).await {
-                                        log::error!("report_merkle_hash err {}", e);
+                                    if let Err(e) = meta_store.update_down_status(&contract_id, SyncStatus::Wait).await {
+                                        error!("change down status err: {:?}", e);
                                     }
                                 }
-                            }
+                                
+                            });
                         }
                     }
                     Err(_e) => {
                         //error!("{}", e);
                         info!("no data wait sync")
+                    }
+                }
+                sleep(Duration::from_secs(5)).await;
+            }
+        });
+    }
+
+    pub async fn start_repair_sync_chunk_data(&self) {
+        loop {
+            if let Err(e) = self.meta_store.repair_half_sync().await {
+                error!("start repair err: {}", e);
+                continue;
+            }
+            break;
+        }
+    }
+
+    async fn check_contract_state(&self) -> BuckyResult<()> {
+        let contract_list = self.meta_store.get_need_check_end_contract_list().await?;
+        for (contract, latest_time) in contract_list.iter() {
+            let contract_ref = DsgContractObjectRef::from(contract);
+            let contract_id = contract_ref.id();
+            match self.dmc.get_order(contract_ref.witness().order_id.as_str()).await {
+                Ok(order) => {
+                    if order.is_some() {
+                        if order.as_ref().unwrap().state == DMCOrderState::OrderStateEnd as u8 {
+                            log::error!("contract {} end.dmc order {}", contract_id.to_string(), contract_ref.witness().order_id.as_str());
+                            self.meta_store.update_down_status(&contract_id, SyncStatus::ContractOutTime).await?;
+                        } else {
+                            self.meta_store.update_latest_check_time(&contract_id, latest_time + 7*24*3600*1000000).await?;
+                        }
+                    }
+                },
+                Err(e) => {
+                    log::error!("get {} order err {}", contract_ref.witness().order_id.as_str(), e);
+                }
+            }
+
+        }
+        Ok(())
+    }
+
+    pub async fn contract_end_del(self: &Arc<Self>) {
+        let meta_store = self.meta_store.clone();
+        let this = self.clone();
+
+        spawn( async move {
+            loop {
+                
+                if let Err(e) = this.check_contract_state().await {
+                    error!("check out time err: {}", e);
+                }
+
+                if let Err(e) = meta_store.check_challenge_out_time().await {
+                    error!("challenge out time err: {}", e);
+                }
+
+                match meta_store.get_end_contracts().await {
+                    Ok(vecs) => {
+                        for (chunk_list, contract_id, _owner_id) in vecs {
+
+                           let mut is_del = true;
+                           for chunk_id in &chunk_list {
+                                if let Err(e) = meta_store.chunk_ref_del(&contract_id, chunk_id).await {
+                                    error!("chunk ref del err: {:?}", e);
+                                    is_del = false;
+                                }
+                                if let Err(e) = meta_store.chunk_del_list_add(chunk_id).await {
+                                    error!("del list add err: {:?}", e);
+                                    is_del = false;
+                                }
+                           }
+
+                           if is_del {
+                                if let Err(e) = meta_store.update_down_status(&contract_id, SyncStatus::Complete).await {
+                                    error!("change status err: {:?}", e);
+                                }
+                           }
+                        }
+                    }
+                    Err(e) => {
+                        info!("no data wait del: {}", e)
                     }
                 }
                 sleep(Duration::from_secs(5)).await;
@@ -219,7 +392,7 @@ impl MinerChallenge {
                                         error!("verify proof err: {:?}", e)
                                     } else {
                                         info!("first proof success");
-                                        if let Err(e) = meta_store.update_down_status(&contract_id, DownStatus::Proof).await {
+                                        if let Err(e) = meta_store.update_down_status(&contract_id, SyncStatus::Proof).await {
                                             error!("change proof status err: {:?}", e);
                                         }
                                     }
@@ -257,9 +430,11 @@ impl MinerChallenge {
         Ok(())
     }*/
 
-    pub async fn sync_chunk_to_local(stack: Arc<SharedCyfsStack>, chunk_id: &ChunkId, source_list: Vec<DeviceId>) -> BuckyResult<()> {
-        Self::download(stack, chunk_id.object_id(), None, source_list).await?;
-
+    pub async fn sync_chunk_to_local(stack: Arc<SharedCyfsStack>, chunk_list: &Vec<ChunkId>, source_list: Vec<DeviceId>) -> BuckyResult<()> {
+        for chunk_id in chunk_list {
+            Self::download(stack.clone(), chunk_id.object_id(), None, source_list.clone()).await?;
+        }
+        
         Ok(())
     }
 
@@ -447,7 +622,16 @@ pub fn get_dec_id() -> ObjectId {
 pub struct ContractChunkList(pub Vec<ChunkId>);
 
 #[derive(RawEncode, RawDecode, Clone, Debug)]
-pub struct ContractDownStatus(pub i64);
+pub struct ContractSyncStatus(pub i64);
 
 #[derive(RawEncode, RawDecode, Clone, Debug)]
 pub struct ContractList(pub BTreeSet<ObjectId>);
+
+#[derive(RawEncode, RawDecode, Clone, Debug)]
+pub struct ChunkRefMap(pub BTreeMap<ChunkId, BTreeSet<ObjectId>>);
+
+#[derive(RawEncode, RawDecode, Clone, Debug)]
+pub struct DelSet(pub BTreeSet<ChunkId>);
+
+#[derive(RawEncode, RawDecode, Clone, Debug)]
+pub struct LastCheckTime(pub u64);

@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet};
+use std::collections::{BTreeSet, BTreeMap};
 use std::{sync::Arc};
 use cyfs_base::*;
 use cyfs_lib::*;
@@ -41,17 +41,17 @@ impl StackStore {
         Ok(())
     }
 
-    pub async fn get_down_stat(&self, contract_id: &ObjectId) -> BuckyResult<DownStatus> {
+    pub async fn get_down_stat(&self, contract_id: &ObjectId) -> BuckyResult<SyncStatus> {
         if let Some(set_id) = self.get_by_path(format!("/miner/contracts/{}/", contract_id), "down_stat").await? {
-            let cobj: ContractDownStatus = self.get_object_from_noc::<RawObject>(set_id).await?.get()?;
-            Ok(DownStatus::from(cobj.0))
+            let cobj: ContractSyncStatus = self.get_object_from_noc::<RawObject>(set_id).await?.get()?;
+            Ok(SyncStatus::from(cobj.0))
         } else {
             Err(BuckyError::from("not found"))
         }
     }
 
-    pub async fn save_down_stat(&self, contract_id: &ObjectId, state: DownStatus) -> BuckyResult<()> {
-        let down_stat = ContractDownStatus(state.into());
+    pub async fn save_down_stat(&self, contract_id: &ObjectId, state: SyncStatus) -> BuckyResult<()> {
+        let down_stat = ContractSyncStatus(state.into());
         self.save_by_path(format!("/miner/contracts/{}/", contract_id), "down_stat", None, None, Some(&down_stat)).await?;
 
         Ok(())
@@ -96,6 +96,128 @@ impl StackStore {
         }
 
         Ok(())
+    }
+
+    pub async fn chunk_ref(&self) -> BuckyResult<BTreeMap<ChunkId, BTreeSet<ObjectId>>> {
+        let mut map = BTreeMap::new();
+        if let Some(set_id) = self.get_by_path("/miner/contracts/chunk_ref/", "chunk_ref").await? {
+            let list: ChunkRefMap = self.get_object_from_noc::<RawObject>(set_id).await?.get()?;
+            map = list.0;
+        }
+
+        Ok(map)
+    }
+
+    pub async fn chunk_ref_create(&self, contract_id: &ObjectId, chunk_id: &ChunkId) -> BuckyResult<()> {
+        let cmap = if let Ok(mut map) = self.chunk_ref().await {
+            let set = if let Some(oset) = map.get(chunk_id) {
+                let mut cset = oset.clone();
+                cset.insert(contract_id.clone());
+                cset
+            } else {
+                let mut cset = BTreeSet::new();
+                cset.insert(contract_id.clone());
+                cset
+            };
+            map.insert(chunk_id.clone(), set);
+            map
+        } else {
+            let mut map = BTreeMap::new();
+            let mut set = BTreeSet::new();
+            set.insert(contract_id.clone());
+            map.insert(chunk_id.clone(), set);
+            map
+        };
+
+        let ck_ref = ChunkRefMap(cmap);
+        self.save_by_path("/miner/contracts/chunk_ref/", "chunk_ref", None, None, Some(&ck_ref)).await?;
+
+        Ok(())
+    }
+
+    pub async fn chunk_ref_remove(&self, contract_id: &ObjectId, chunk_id: &ChunkId) -> BuckyResult<()> {
+        if let Ok(mut cmap) = self.chunk_ref().await {
+            if let Some(cset) = cmap.get(chunk_id) {
+                if cset.contains(contract_id) {
+                    let mut set = cset.clone();
+                    set.remove(contract_id);
+                    cmap.insert(chunk_id.clone(), set);
+
+                    let ck_ref = ChunkRefMap(cmap);
+                    self.save_by_path("/miner/contracts/chunk_ref/", "chunk_ref", None, None, Some(&ck_ref)).await?;            
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn chunk_ref_exist(&self, contract_id: &ObjectId, chunk_id: &ChunkId) -> BuckyResult<bool> {
+        if let Ok(cmap) = self.chunk_ref().await {
+            if let Some(cset) = cmap.get(chunk_id) {
+                if cset.contains(contract_id) {
+                    return Ok(true);            
+                }
+            }
+        }
+
+        Ok(false)
+    }
+
+    pub async fn del_list(&self) -> BuckyResult<BTreeSet<ChunkId>> {
+        let mut set = BTreeSet::new();
+        if let Some(set_id) = self.get_by_path("/miner/contracts/del_list/", "del_list").await? {
+            let list: DelSet = self.get_object_from_noc::<RawObject>(set_id).await?.get()?;
+            set = list.0;
+        }
+
+        Ok(set)
+    }
+
+    pub async fn del_list_create(&self, chunk_id: &ChunkId) -> BuckyResult<()> {
+        let mut is_save = true;
+        let cset = if let Ok(mut dset) = self.del_list().await {
+            if dset.contains(chunk_id) {
+                is_save = false;
+            } else {
+                dset.insert(chunk_id.clone());
+            };
+            dset
+        } else {
+            let mut set = BTreeSet::new();
+            set.insert(chunk_id.clone());
+            set
+        };
+
+        if is_save {
+            let del_set = DelSet(cset);
+            self.save_by_path("/miner/contracts/del_list/", "del_list", None, None, Some(&del_set)).await?;    
+        }
+        
+        Ok(())
+    }
+
+    pub async fn del_list_remove(&self, chunk_id: &ChunkId) -> BuckyResult<()> {
+        if let Ok(mut dset) = self.del_list().await {
+            if dset.contains(chunk_id) {
+                dset.remove(chunk_id);
+
+                let del_set = DelSet(dset);
+                self.save_by_path("/miner/contracts/del_list/", "del_list", None, None, Some(&del_set)).await?;            
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn del_list_exist(&self, chunk_id: &ChunkId) -> BuckyResult<bool> {
+        if let Ok(dset) = self.del_list().await {
+            if dset.contains(chunk_id) {
+                return Ok(true);            
+            }
+        }
+
+        Ok(false)
     }
 
     pub async fn contract_sync_set(&self) -> BuckyResult<BTreeSet<ObjectId>> {
@@ -281,20 +403,23 @@ impl ContractMetaStore for StackStore {
             _ => ()
         };
 
-        let mut chunk_list = vec![];
+        let mut down_stat = SyncStatus::Wait;
+        let mut chunks = vec![];
         match data {
             DsgDataSource::Immutable(cks) => {
-                chunk_list = cks.clone();
+                chunks = cks.clone();
             },
-            _ => ()
+            DsgDataSource::Mutable(_) => {
+                down_stat = SyncStatus::Proof;
+            }
         };
 
         self.save_by_path(format!("/miner/contracts/{}/", contract_id), "contract", Some(contract_id), Some(contract), None).await?;
         self.contract_sync_set_add(contract_id).await?;
-        self.save_down_stat(contract_id, DownStatus::Wait).await?;
+        self.save_down_stat(contract_id, down_stat).await?;
         self.contract_set_add(contract_id).await?;
         self.save_contract_id_by_path(url_path, contract_id).await?;
-        self.save_chunk_list(contract_id, chunk_list).await?;
+        self.save_chunk_list(contract_id, chunks).await?;
 
         Ok(())
     }
@@ -343,15 +468,15 @@ impl ContractMetaStore for StackStore {
         Ok(wait_proof)
     }
 
-    async fn update_down_status(&self, contract_id: &ObjectId, down_stat: DownStatus) -> BuckyResult<()> {
-        self.save_down_stat(contract_id, DownStatus::Wait).await?;
+    async fn update_down_status(&self, contract_id: &ObjectId, down_stat: SyncStatus) -> BuckyResult<()> {
+        self.save_down_stat(contract_id, SyncStatus::Wait).await?;
 
         match down_stat {
-            DownStatus::Success => {
+            SyncStatus::Success => {
                 self.contract_sync_set_remove(contract_id).await?;
                 self.contract_proof_set_add(contract_id).await?;
             },
-            DownStatus::Proof => {
+            SyncStatus::Proof => {
                 self.contract_proof_set_remove(contract_id).await?;
             },
             _ => ()
@@ -368,7 +493,7 @@ impl ContractMetaStore for StackStore {
         None
     }
 
-    async fn get_down_status(&self, contract_id: &ObjectId) -> BuckyResult<DownStatus> {
+    async fn get_down_status(&self, contract_id: &ObjectId) -> BuckyResult<SyncStatus> {
         Ok(self.get_down_stat(contract_id).await?)
     }
 
@@ -450,6 +575,124 @@ impl ContractMetaStore for StackStore {
 
         Ok(())
     }
+
+    async fn chunk_ref_add(&self, contract_id: &ObjectId, chunk_id: &ChunkId) -> BuckyResult<()> {
+        self.chunk_ref_create(contract_id, chunk_id).await
+    }
+
+    async fn chunk_ref_del(&self, contract_id: &ObjectId, chunk_id: &ChunkId) -> BuckyResult<()> {
+        self.chunk_ref_remove(contract_id, chunk_id).await
+    }
+
+    async fn check_challenge_out_time(&self) -> BuckyResult<()> {
+        let contracts = self.contract_set().await?;
+        for contract_id in contracts {
+            let challenge = self.get_challenge(&contract_id).await?;
+            let challenge_ref = DsgChallengeObjectRef::from(&challenge);
+
+            let exp = challenge_ref.expire_at();
+            let now = bucky_time_now();
+
+            if now > exp {
+                self.update_down_status(&contract_id, SyncStatus::ChallengeOutTime).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn check_contract_out_time(&self) -> BuckyResult<()> {
+        let contracts = self.contract_set().await?;
+        for contract_id in contracts {
+            let contract: DsgContractObject<DMCContractData> = self.get(&contract_id).await?;
+            let contract_ref = DsgContractObjectRef::from(&contract);
+
+            let exp = contract_ref.end_at();
+            let now = bucky_time_now();
+
+            if now > exp {
+                self.update_down_status(&contract_id, SyncStatus::ContractOutTime).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn get_end_contracts(&self) -> BuckyResult<Vec<(Vec<ChunkId>, ObjectId, ObjectId)>> {
+        let mut list = vec![];
+        let contracts = self.contract_set().await?;
+        for contract_id in contracts {
+            let state = self.get_down_stat(&contract_id).await?;
+            match state {
+                SyncStatus::ContractOutTime => {
+                    let owner_id = self.get_owner(&contract_id).await?;
+                    let chunks = self.get_chunk_list(&contract_id).await?;
+                    
+                    list.push((chunks, contract_id, owner_id));
+                },
+                _ => ()
+            }
+        }
+
+        Ok(list)
+    }
+
+    async fn chunk_del_list_add(&self, chunk_id: &ChunkId) -> BuckyResult<()> {
+        self.del_list_create(chunk_id).await
+    }
+
+    async fn chunk_del_list_del(&self, chunk_id: &ChunkId) -> BuckyResult<()> {
+        self.del_list_remove(chunk_id).await
+    }
+
+    async fn repair_half_sync(&self) -> BuckyResult<()> {
+        let contracts = self.contract_set().await?;
+        for contract_id in contracts {
+            let state = self.get_down_stat(&contract_id).await?;
+            match state {
+                SyncStatus::Down => {
+                    self.update_down_status(&contract_id, SyncStatus::Wait).await?;
+                },
+                _ => ()
+            } 
+        }
+
+        Ok(())
+    }
+
+    async fn get_need_check_end_contract_list(&self) -> BuckyResult<Vec<(DsgContractObject<DMCContractData>, u64)>> {
+        let mut list = Vec::new();
+        let contracts = self.contract_set().await?;
+        for contract_id in contracts {
+            let state = self.get_down_stat(&contract_id).await?;
+            match state {
+                SyncStatus::ContractOutTime => {
+                    if let Some(obj_id) = self.get_by_path(format!("/miner/contracts/{}/", contract_id), "latest_check_time").await? {
+                        let LastCheckTime(latest_check_time) = self.get_object_from_noc(obj_id).await?;
+                        let contract: DsgContractObject<DMCContractData> = self.get(&contract_id).await?;
+                        list.push((contract, latest_check_time as u64));
+                    }
+                },
+                _ => ()
+            }
+        }
+
+        Ok(list)
+    }
+
+    async fn update_latest_check_time(&self, contract_id: &ObjectId, latest_check_time: u64) -> BuckyResult<()> {
+        let last_time = LastCheckTime(latest_check_time);
+        self.save_by_path(format!("/miner/contracts/{}/", contract_id), "latest_check_time", None, Some(&last_time), None).await?;
+
+        Ok(())
+    }
+
+    async fn update_contract_status(&self, contract_id: &ObjectId, dstat: SyncStatus, latest_check_time: u64) -> BuckyResult<()> {
+        self.update_latest_check_time(contract_id, latest_check_time).await?;
+        self.save_down_stat(contract_id, dstat).await?;
+        Ok(())
+    }
+
 }
 
 pub async fn hash(data: impl AsRef<[u8]>) -> String {

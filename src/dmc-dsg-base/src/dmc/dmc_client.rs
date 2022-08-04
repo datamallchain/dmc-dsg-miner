@@ -365,6 +365,15 @@ pub struct DMCOrder {
     pub deliver_start_date: String,
 }
 
+#[repr(u8)]
+pub enum DMCOrderState {
+    OrderStateWaiting = 0, //0: 订单未共识，等待中
+    OrderStateDeliver = 1, //1: 订单状态交付中
+    OrderStatePreEnd = 2, //2: 没有⾜够的预存⾦，订单即将结束
+    OrderStatePreCont = 3, //3: 有⾜够的预存⾦，订单下个周期依然处于交付中
+    OrderStateEnd = 4 // 4: 订单已经结束
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DMCChallenge {
     pub order_id: String,
@@ -675,6 +684,30 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         };
 
         self.api.rpc().get_table_rows(&req).await
+    }
+
+    pub async fn get_order_by_id(&self, order_id: &str) -> BuckyResult<Option<DMCOrder>> {
+        let req = GetTableRowsReq {
+            json: true,
+            code: "eosio.token",
+            table: "dmcorder",
+            scope: "eosio.token",
+            index_position: Some("primary"),
+            key_type: Some("order_id"),
+            encode_type: None,
+            lower_bound: Some(order_id),
+            upper_bound: Some(order_id),
+            limit: None,
+            reverse: Some(true),
+            show_payer: None
+        };
+
+        let rows: GetTableRowsResult<DMCOrder> = self.api.rpc().get_table_rows(&req).await?;
+        if rows.rows.len() == 0 {
+            Ok(None)
+        } else {
+            Ok(Some(rows.rows[0].clone()))
+        }
     }
 
     pub async fn get_order_of_miner(&self, order_id: &str) -> BuckyResult<Option<DMCOrder>> {

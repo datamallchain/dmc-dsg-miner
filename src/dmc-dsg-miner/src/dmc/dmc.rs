@@ -6,7 +6,7 @@ use cyfs_base::*;
 use cyfs_chunk_lib::CHUNK_SIZE;
 use cyfs_lib::SharedCyfsStack;
 use cyfs_dsg_client::DsgContractObject;
-use crate::{ContractChunkStore, ContractCursor, ContractMetaStore, CyfsInfo, DMCChallenge, DMCChallengeState, DMCClient, DSG_CHUNK_PIECE_SIZE, SimpleSignatureProvider};
+use crate::*;
 
 #[derive(ProtobufEncode, ProtobufDecode, Clone, ProtobufTransform, Debug)]
 #[cyfs_protobuf_type(crate::protos::DmcContractData)]
@@ -183,5 +183,9 @@ impl DMC {
         self.dmc_client.add_merkle(dmc_data.order_id.as_str(), root, piece_count as u64).await?;
 
         Ok(())
+    }
+
+    pub async fn get_order(&self, order_id: &str) -> BuckyResult<Option<DMCOrder>> {
+        self.dmc_client.get_order_by_id(order_id).await
     }
 }

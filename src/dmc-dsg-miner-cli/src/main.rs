@@ -50,15 +50,15 @@ async fn main() {
         .build()
         .start();
 
-    let mut config = ConfigBuilder::<DefaultState>::default()
-        .set_default("dmc_server", "http://154.22.122.40:8870").unwrap()
-        .build().unwrap();
+    let mut builder = ConfigBuilder::<DefaultState>::default();
+    builder = builder.set_default("dmc_server", "http://154.22.122.40:8870").unwrap();
+
     let data_dir = get_app_data_dir(DMCDsgConfig::APP_NAME);
     let config_path = data_dir.join("config.toml");
     if config_path.exists() {
-        let file = config::File::from(config_path.as_path());
-        config.merge(file).unwrap();
+        builder = builder.add_source(config::File::new(&config_path.display().to_string(), config::FileFormat::Toml));
     }
+    let config = builder.build().unwrap();
 
     let dec_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), DMCDsgConfig::PRODUCT_NAME);
     log::info!("dec_id:{} product_name:{}", dec_id.to_string(), DMCDsgConfig::PRODUCT_NAME);

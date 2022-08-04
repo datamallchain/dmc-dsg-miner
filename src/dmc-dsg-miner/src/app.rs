@@ -68,6 +68,7 @@ impl App {
             let delegate =DelegateImpl::new(self.stack.clone(), self.chunk_meta.clone(), self.raw_data_store.clone(), dmc.clone());
             delegate.store.sync_chunk_data().await;
             delegate.store.first_proof().await;
+            delegate.store.contract_end_del().await;
 
             let service = OodMiner::new(self.stack.clone(), delegate).await?;
             *self.miner.lock().unwrap() = Some(service);
