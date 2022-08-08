@@ -110,8 +110,8 @@ impl DMCDsgService {
         )?))
     }
 
-    async fn on_set_dmc_account(&self, dmc_account: String) -> BuckyResult<Option<JSONObject>> {
-        self.app.set_dmc_account(dmc_account).await?;
+    async fn on_set_dmc_account(&self, req: SetDMCAccount) -> BuckyResult<Option<JSONObject>> {
+        self.app.set_dmc_account(req.dmc_account, req.dmc_key).await?;
         Ok(Some(JSONObject::new(
             self.dec_id.clone(),
             self.owner_id.clone(),

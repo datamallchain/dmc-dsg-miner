@@ -12,10 +12,13 @@ use dmc_dsg_miner_cli::{App, RuntimeLauncher};
 
 #[async_std::main]
 async fn main() {
-    let matches = clap::App::new("dmc-dsg-client")
+    let matches = clap::App::new("dmc-dsg-miner-cli")
         .subcommand(SubCommand::with_name("create_light_auth").about("Create the low-privilege private key needed to run the DSG")
             .arg(clap::Arg::with_name("dmc_account").required(true))
             .arg(clap::Arg::with_name("private_key").required(true)))
+        .subcommand(SubCommand::with_name("set_dmc_account").about("Set the dmc account and low-privilege private key needed to run the DSG")
+            .arg(clap::Arg::with_name("dmc_account").required(true))
+            .arg(clap::Arg::with_name("light_private_key").required(true)))
         .subcommand(SubCommand::with_name("stake").about("Enter the amount of DMC you want to stake")
             .arg(clap::Arg::with_name("dmc_account").required(true))
             .arg(clap::Arg::with_name("private_key").required(true))
@@ -71,6 +74,14 @@ async fn main() {
             let dmc_account = matches.as_ref().unwrap().value_of("dmc_account").unwrap();
             let private_key = matches.as_ref().unwrap().value_of("private_key").unwrap();
             if let Err(e) = app.create_light_auth(dmc_account, private_key).await {
+                log::error!("create light auth err {}", e);
+                println!("create light auth err {}", e);
+            }
+        }
+        ("set_dmc_account", matches) => {
+            let dmc_account = matches.as_ref().unwrap().value_of("dmc_account").unwrap();
+            let private_key = matches.as_ref().unwrap().value_of("light_private_key").unwrap();
+            if let Err(e) = app.set_dmc_account(dmc_account, private_key).await {
                 log::error!("create light auth err {}", e);
                 println!("create light auth err {}", e);
             }

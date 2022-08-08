@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use cyfs_base::*;
 use cyfs_lib::SharedCyfsStack;
-use dmc_dsg_base::{app_err2, app_msg, DMCPrivateKey, Setting, SettingRef, DMC_DSG_ERROR_REPORT_FAILED};
+use dmc_dsg_base::{app_err2, app_msg, DMCPrivateKey, Setting, SettingRef, DMC_DSG_ERROR_REPORT_FAILED, cyfs_err};
 use crate::{ContractChunkStore, ContractMetaStore, DelegateImpl, DMC, OodMiner};
 
 pub struct App {
@@ -76,9 +76,12 @@ impl App {
         Ok(())
     }
 
-    pub async fn set_dmc_account(&self, dmc_account: String) -> BuckyResult<()> {
-        self.setting.set_setting("dmc_account".to_string(), dmc_account);
+    pub async fn set_dmc_account(&self, dmc_account: String, dmc_key: String) -> BuckyResult<()> {
+        self.setting.set_setting("dmc_account".to_string(), dmc_account.clone());
+        let key_name = format!("{}_dmc_key", dmc_account);
+        self.setting.set_setting(key_name, dmc_key);
         self.setting.save().await?;
+        *self.miner.lock().unwrap() = None;
         self.init().await?;
         Ok(())
     }
@@ -91,11 +94,7 @@ impl App {
         let key_name = format!("{}_dmc_key", dmc_account);
         let private_key = self.setting.get_setting(key_name.as_str(), "");
         let dmc_private_key =if private_key.is_empty() {
-            let dmc_private_key = DMCPrivateKey::gen_key();
-            let private_key = dmc_private_key.to_legacy_string()?;
-            self.setting.set_setting(key_name, private_key.clone());
-            self.setting.save().await?;
-            private_key
+            return Err(cyfs_err!(BuckyErrorCode::NotFound, "not find {}'s key", dmc_account));
         } else {
             private_key
         };

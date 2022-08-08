@@ -22,18 +22,22 @@ cargo build --release
 
 dmc-dsg-miner-cli create_light_auth <dmc_account> <private_key>
 
-2.质押DMC
+2.将DMC账号和轻私钥设置到DSG
+
+dmc-dsg-miner-cli set_dmc_account <dmc_account> <light_private_key>
+
+3.质押DMC
 
 dmc-dsg-miner-cli stake <dmc_account> <private_key> <amount>
 
- 3.铸造PST
+ 4.铸造PST
 
 dmc-dsg-miner-cli mint <dmc_account> <private_key> <amount>
 
-4.售卖PST
+5.售卖PST
 
 dmc-dsg-miner-cli stake <dmc_account> <private_key> <amount> <price>
 
-5.查看相关信息
+6.查看相关信息
 
 dmc-dsg-miner-cli info <dmc_account>

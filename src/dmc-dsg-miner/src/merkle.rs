@@ -193,7 +193,6 @@ impl <T: Send + Sync + Deref<Target=[u8]> + DerefMut<Target=[u8]>> HashStore for
     }
 
     async fn set_node(&mut self, layer_number: u16, index: u64, hash: &[u8;32]) -> BuckyResult<()> {
-        log::info!("set node layer {} index {} hash {}", layer_number, index, hex::encode(hash));
         match self.layer_info.get( layer_number as usize) {
             Some((offset, len)) => {
                 if index >= *len {

@@ -32,7 +32,7 @@ impl MinerChallenge {
         match self.meta_store.get_down_status(contract_id).await? {
             SyncStatus::Proof => {
                 let state: DsgContractStateObject = self.get_object(Some(owner_id.clone()), state_id.clone()).await?;
-                
+
                 let state_ref = DsgContractStateObjectRef::from(&state);
                 let mut is_add_chunk = false;
                 match state_ref.state() {
@@ -56,7 +56,7 @@ impl MinerChallenge {
                         info!("DataSourceStored");
                     },
                 }
-                
+
                 self.meta_store.save_stat(contract_id, &state).await?;
                 self.meta_store.save_challenge(contract_id, challenge).await?;
                 //self.save_chunks(contract_id, &state).await?;
@@ -65,7 +65,7 @@ impl MinerChallenge {
                     self.to_challenge(interface, contract_id, challenge, owner_id).await?;
                     info!("{} challenge success", contract_id);
                 }
-                
+
             },
             _ => {
                 info!("wait sync chunks");
@@ -118,7 +118,7 @@ impl MinerChallenge {
             }
             is_add_chunk = true;
         }
-        
+
         Ok(is_add_chunk)
     }
 
@@ -150,7 +150,7 @@ impl MinerChallenge {
             return Err(BuckyError::new(BuckyErrorCode::InvalidData, "check contract failed"));
         }
         let state: DsgContractStateObject = self.get_object(Some(owner_id.clone()), state_id.clone()).await?;
-        
+
         let state_ref = DsgContractStateObjectRef::from(&state);
         //let mut chunk_list = vec![];
         match state_ref.state() {
@@ -163,7 +163,7 @@ impl MinerChallenge {
             DsgContractState::DataSourcePrepared(c) => {
                 let chunk_list = c.chunks.clone();
                 info!("DataSourcePrepared {:?}", &chunk_list);
-                
+
             },
             DsgContractState::DataSourceChanged(c) => {
                 let chunk_list = c.chunks.clone();
@@ -200,7 +200,8 @@ impl MinerChallenge {
     }
 
     pub async fn save_chunks(&self, contract_id: &ObjectId, state: &DsgContractStateObject) -> BuckyResult<()> {
-        match state.desc().content().state {
+        let state_ref = DsgContractStateObjectRef::from(state);
+        match state_ref.state() {
             DsgContractState::DataSourceChanged(ref data_source) => {
                 let chunk_list = data_source.chunks.clone();
                 self.meta_store.save_chunk_list(contract_id, chunk_list).await?;
@@ -272,7 +273,7 @@ impl MinerChallenge {
                                         error!("change down status err: {:?}", e);
                                     }
                                 }
-                                
+
                             });
                         }
                     }
@@ -327,7 +328,7 @@ impl MinerChallenge {
 
         spawn( async move {
             loop {
-                
+
                 if let Err(e) = this.check_contract_state().await {
                     error!("check out time err: {}", e);
                 }
@@ -363,7 +364,7 @@ impl MinerChallenge {
                         info!("no data wait del: {}", e)
                     }
                 }
-                sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(600)).await;
             }
         });
     }
@@ -384,7 +385,7 @@ impl MinerChallenge {
                                 let challenge_ref = DsgChallengeObjectRef::from(&challenge);
                                 let chunk_reder = Box::new(MinerChunkReader::new(data_store.clone()));
                                 info!("challenge: {} chunks: {:?}", &challenge_ref, &chunk_list);
-                        
+
                                 if let Ok(proof) = DsgProofObjectRef::proove(challenge_ref, &chunk_list, chunk_reder).await {
                                     let proof_ref = DsgProofObjectRef::from(&proof);
                                     let interface = DsgMinerInterface::new(stack.clone());
@@ -434,7 +435,7 @@ impl MinerChallenge {
         for chunk_id in chunk_list {
             Self::download(stack.clone(), chunk_id.object_id(), None, source_list.clone()).await?;
         }
-        
+
         Ok(())
     }
 
@@ -444,7 +445,7 @@ impl MinerChallenge {
         Ok(save_path.to_owned())
     }
 
-    
+
 
     pub async fn download(stack: Arc<SharedCyfsStack>, chunk_id: ObjectId, save_path: Option<PathBuf>, source_list: Vec<DeviceId>) -> BuckyResult<()> {
         let dec_id = get_dec_id();

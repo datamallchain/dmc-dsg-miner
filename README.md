@@ -26,19 +26,23 @@ dmc-dsg-miner-cli create_light_auth <dmc_account> <private_key>
 
 Since the mining program needs to continuously interact with the DMC chain, such as obtaining and responding to the user's storage challenges, these interactions require signatures to operate normally. In order to ensure the security of the user's private key, a low-privilege private key is specially set up. key only dsg-related interfaces can be called, and other interfaces such as transfers cannot be called.
 
-2.Staking DMC
+2.Set dmc account and light_private_key  to DSG
+
+dmc-dsg-miner-cli set_dmc_account <dmc_account> <light_private_key>
+
+3.Staking DMC
 
 dmc-dsg-miner-cli stake <dmc_account> <private_key> <amount>
 
- 3.Mint PST
+ 4.Mint PST
 
 dmc-dsg-miner-cli mint <dmc_account> <private_key> <amount>
 
-4.Sell PST
+5.Sell PST
 
 dmc-dsg-miner-cli stake <dmc_account> <private_key> <amount> <price>
 
-5.view info
+6.view info
 
 dmc-dsg-miner-cli info <dmc_account>
 

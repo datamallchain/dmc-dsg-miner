@@ -2,7 +2,7 @@ use std::sync::Arc;
 use async_std::task::JoinHandle;
 use cyfs_base::{BuckyErrorCode, BuckyResult, NamedObject, ObjectDesc, ObjectId, OwnerObjectDesc, RawConvertTo};
 use cyfs_lib::{SharedCyfsStack, UtilGetSystemInfoOutputRequest};
-use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, SharedCyfsStackEx, SimpleSignatureProvider, cyfs_err};
+use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, SharedCyfsStackEx, SimpleSignatureProvider, cyfs_err, SetDMCAccount, DMCPrivateKey};
 
 pub struct DmcInfo {
     pub dmc_account: String,
@@ -41,8 +41,11 @@ impl App {
         Ok(resp.get()?)
     }
 
-    pub async fn set_dmc_account(&self, dmc_account: &str) -> BuckyResult<()> {
-        let req = JSONObject::new(self.dec_id.clone(), self.owner_id.clone(), JsonProtocol::SetDMCAccount as u16, &dmc_account.to_string())?;
+    pub async fn set_dmc_account(&self, dmc_account: &str, private_key: &str) -> BuckyResult<()> {
+        let req = JSONObject::new(self.dec_id.clone(), self.owner_id.clone(), JsonProtocol::SetDMCAccount as u16, &SetDMCAccount {
+            dmc_account: dmc_account.to_string(),
+            dmc_key: private_key.to_string()
+        })?;
         let req_id = req.desc().calculate_id();
         let signed_obj = self.stack.sign_object(req_id.clone(), req.to_vec()?).await?;
         let _: JSONObject = self.stack.put_object_with_resp2(self.ood_id.clone(), req_id, signed_obj).await?;
@@ -50,7 +53,8 @@ impl App {
     }
 
     pub async fn create_light_auth(&self, dmc_account: &str, private_key: &str) -> BuckyResult<()> {
-        let dmc_key = self.get_dmc_key(dmc_account).await?;
+        let light_private_key = DMCPrivateKey::gen_key();
+        let dmc_key = light_private_key.get_public_key().to_legacy_string()?;
         let dmc_client = DMCClient::new(
             dmc_account,
             self.dmc_sever.as_str(),
@@ -79,12 +83,12 @@ impl App {
             dmc_client.link_auth("eosio.token".to_string(), "anschallenge".to_string(), "active".to_string()).await?;
             dmc_client.link_auth("eosio.token".to_string(), "arbitration".to_string(), "active".to_string()).await?;
 
+            println!("light key {}", light_private_key.to_legacy_string()?);
             Ok(())
         });
 
         task.await?;
 
-        self.set_dmc_account(dmc_account).await?;
 
         Ok(())
     }

@@ -1,3 +1,5 @@
+use serde::{Serialize, Deserialize};
+
 pub enum JsonProtocol {
     GetDMCKey,
     GetDMCKeyResp,
@@ -7,4 +9,10 @@ pub enum JsonProtocol {
     SetDMCAccountResp,
     SetHttpDomain,
     SetHttpDomainResp,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SetDMCAccount {
+    pub dmc_account: String,
+    pub dmc_key: String,
 }

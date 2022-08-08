@@ -5,7 +5,10 @@ use std::{sync::Arc};
 use std::str::FromStr;
 use cyfs_base::{BuckyResult, ObjectId};
 use cyfs_core::{DecApp, DecAppObj};
+use cyfs_util::get_app_data_dir;
 use cyfs_util::process::ProcessAction;
+use config::builder::DefaultState;
+use config::ConfigBuilder;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -26,6 +29,16 @@ async fn main() -> Result<()> {
         .build()
         .start();
 
+    let mut builder = ConfigBuilder::<DefaultState>::default();
+    builder = builder.set_default("dmc_server", "http://154.22.122.40:8870").unwrap();
+
+    let data_dir = get_app_data_dir(DMCDsgConfig::APP_NAME);
+    let config_path = data_dir.join("config.toml");
+    if config_path.exists() {
+        builder = builder.add_source(config::File::new(&config_path.display().to_string(), config::FileFormat::Toml));
+    }
+    let config = builder.build().unwrap();
+
     let dec_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), DMCDsgConfig::PRODUCT_NAME);
     let stack = Arc::new(SharedCyfsStack::open_default(Some(dec_id.clone())).await.unwrap());
     stack.wait_online(None).await.unwrap();
@@ -38,7 +51,7 @@ async fn main() -> Result<()> {
         stack.clone(),
         meta_store.clone(),
         raw_data_store.clone(),
-        "http://154.22.122.40:8870".to_string()).await?;
+        config.get_string("dmc_server").unwrap()).await?;
     if let Err(e) = app.init().await {
         if get_app_err_code(&e) != DMC_DSG_ERROR_REPORT_FAILED {
             BuckyResult::<()>::Err(e).unwrap();
