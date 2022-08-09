@@ -106,7 +106,7 @@ pub struct TransactionTrace {
 #[derive(Serialize, Deserialize)]
 pub struct TransactResult {
     pub transaction_id: String,
-    pub processed: TransactionTrace,
+    // pub processed: TransactionTrace,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -117,7 +117,7 @@ pub struct ReadOnlyTransactResult {
     pub last_irreversible_block_id: String,
     pub code_hash: String,
     pub pending_transactions: Vec<String>,
-    pub result: TransactionTrace
+    // pub result: TransactionTrace
 }
 
 #[derive(Serialize, Deserialize)]
@@ -138,24 +138,24 @@ pub struct GetRawAbiResult {
 
 #[derive(Serialize, Deserialize)]
 pub struct GetInfoResult {
-    pub server_version: String,
+    // pub server_version: String,
     pub chain_id: String,
     pub head_block_num: i64,
     pub last_irreversible_block_num: i64,
     pub last_irreversible_block_id: String,
     pub last_irreversible_block_time: Option<String>,
-    pub head_block_id: String,
-    pub head_block_time: String,
-    pub head_block_producer: String,
-    pub virtual_block_cpu_limit: i64,
-    pub virtual_block_net_limit: i64,
-    pub block_cpu_limit: i64,
-    pub block_net_limit: i64,
-    pub server_version_string: Option<String>,
-    pub fork_db_head_block_num: Option<i64>,
-    pub fork_db_head_block_id: Option<String>,
-    pub server_full_version_string: Option<String>,
-    pub first_block_num: Option<i64>,
+    // pub head_block_id: String,
+    // pub head_block_time: String,
+    // pub head_block_producer: String,
+    // pub virtual_block_cpu_limit: i64,
+    // pub virtual_block_net_limit: i64,
+    // pub block_cpu_limit: i64,
+    // pub block_net_limit: i64,
+    // pub server_version_string: Option<String>,
+    // pub fork_db_head_block_num: Option<i64>,
+    // pub fork_db_head_block_id: Option<String>,
+    // pub server_full_version_string: Option<String>,
+    // pub first_block_num: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -387,9 +387,9 @@ pub struct SignedBlockHeader {
     pub transaction_mroot: String,
     pub action_mroot: String,
     pub schedule_version: i64,
-    pub new_producers: Option<ProducerScheduleType>,
-    pub header_extensions: Vec<(i64, String)>,
-    pub producer_signature: String,
+    // pub new_producers: Option<ProducerScheduleType>,
+    // pub header_extensions: Vec<(i64, String)>,
+    // pub producer_signature: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -443,18 +443,18 @@ pub struct StateExtension {
 pub struct GetBlockHeaderStateResult {
     pub id: String,
     pub header: SignedBlockHeader,
-    pub pending_schedule: ScheduleInfo,
-    pub activated_protocol_features: ProtocolFeatureActivationSet,
-    pub additional_signatures: Vec<String>,
+    // pub pending_schedule: ScheduleInfo,
+    // pub activated_protocol_features: ProtocolFeatureActivationSet,
+    // pub additional_signatures: Vec<String>,
     pub block_num: i64,
     pub dpos_proposed_irreversible_blocknum: i64,
     pub dpos_irreversible_blocknum: i64,
-    pub active_schedule: ProducerAuthoritySchedule,
-    pub blockroot_merkle: IncrementalMerkle,
-    pub producer_to_last_produced: Vec<(String, i64)>,
-    pub producer_to_last_implied_irb: Vec<(String, i64)>,
-    pub confirm_count: Vec<i64>,
-    pub state_extension: Option<(i64, StateExtension)>,
+    // pub active_schedule: ProducerAuthoritySchedule,
+    // pub blockroot_merkle: IncrementalMerkle,
+    // pub producer_to_last_produced: Vec<(String, i64)>,
+    // pub producer_to_last_implied_irb: Vec<(String, i64)>,
+    // pub confirm_count: Vec<i64>,
+    // pub state_extension: Option<(i64, StateExtension)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -466,7 +466,7 @@ pub struct GetBlockResult {
     pub transaction_mroot: String,
     pub action_mroot: String,
     pub schedule_version: i64,
-    pub new_producers: Option<ProducerScheduleType>,
+    // pub new_producers: Option<ProducerScheduleType>,
     pub producer_signature: String,
     pub id: String,
     pub block_num: i64,
@@ -845,7 +845,7 @@ impl DMCRpc {
     }
 
     pub async fn get_table_rows<'a, T: for <'de> Deserialize<'de>>(&self,
-                                req: &GetTableRowsReq<'a>) -> BuckyResult<GetTableRowsResult<T>> {
+                                                                   req: &GetTableRowsReq<'a>) -> BuckyResult<GetTableRowsResult<T>> {
         let url = format!("{}/v1/chain/get_table_rows", self.server.as_str());
         let data = serde_json::to_string(req).map_err(|e| {
             cyfs_err!(BuckyErrorCode::Failed, "encode json err {}", e)
@@ -866,7 +866,7 @@ impl DMCRpc {
     }
 
     pub async fn get_kv_table_rows<'a, T: for <'de> Deserialize<'de>>(&self,
-                                   req: &GetKVTableRowsReq<'a>) -> BuckyResult<GetTableRowsResult<T>> {
+                                                                      req: &GetKVTableRowsReq<'a>) -> BuckyResult<GetTableRowsResult<T>> {
         let url = format!("{}/v1/chain/get_kv_table_rows", self.server.as_str());
         let data = serde_json::to_string(req).map_err(|e| {
             cyfs_err!(BuckyErrorCode::Failed, "encode json err {}", e)
@@ -887,7 +887,7 @@ impl DMCRpc {
     }
 
     pub async fn get_table_by_scope<'a>(&self,
-                                    req: &GetTableByScopeReq<'a>) -> BuckyResult<GetTableByScopeResult> {
+                                        req: &GetTableByScopeReq<'a>) -> BuckyResult<GetTableByScopeResult> {
         let url = format!("{}/v1/chain/get_table_by_scope", self.server.as_str());
         let data = serde_json::to_string(req).map_err(|e| {
             cyfs_err!(BuckyErrorCode::Failed, "encode json err {}", e)
