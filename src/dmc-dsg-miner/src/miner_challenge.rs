@@ -448,11 +448,10 @@ impl MinerChallenge {
 
 
     pub async fn download(stack: Arc<SharedCyfsStack>, chunk_id: ObjectId, save_path: Option<PathBuf>, source_list: Vec<DeviceId>) -> BuckyResult<()> {
-        let dec_id = get_dec_id();
         let task_id = stack.trans().create_task(&TransCreateTaskOutputRequest {
             common: NDNOutputRequestCommon {
                 req_path: None,
-                dec_id: Some(dec_id),
+                dec_id: None,
                 level: NDNAPILevel::NDC,
                 target: None,
                 referer_object: vec![],
@@ -469,7 +468,7 @@ impl MinerChallenge {
             let state = stack.trans().get_task_state(&TransGetTaskStateOutputRequest {
                 common: NDNOutputRequestCommon {
                     req_path: None,
-                    dec_id: Some(dec_id),
+                    dec_id: None,
                     level: NDNAPILevel::NDC,
                     target: None,
                     referer_object: vec![],
@@ -504,7 +503,7 @@ impl MinerChallenge {
         stack.trans().delete_task(&TransTaskOutputRequest {
             common: NDNOutputRequestCommon {
                 req_path: None,
-                dec_id: Some(dec_id),
+                dec_id: None,
                 level: NDNAPILevel::NDC,
                 target: None,
                 referer_object: vec![],
