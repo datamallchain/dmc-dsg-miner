@@ -12,6 +12,7 @@ pub struct App {
     stack: Arc<SharedCyfsStack>,
     miner: Mutex<Option<OodMiner<DelegateImpl>>>,
     dmc_server: String,
+    dec_id: ObjectId,
 }
 pub type AppRef = Arc<App>;
 
@@ -21,6 +22,7 @@ impl App {
         chunk_meta: Arc<Box<dyn ContractMetaStore>>,
         raw_data_store: Arc<Box<dyn ContractChunkStore>>,
         dmc_server: String,
+        dec_id: ObjectId,
     ) -> BuckyResult<AppRef> {
         let setting = Setting::new(stack.clone());
         setting.load().await?;
@@ -30,7 +32,8 @@ impl App {
             raw_data_store,
             stack,
             miner: Mutex::new(None),
-            dmc_server
+            dmc_server,
+            dec_id
         }))
     }
 
@@ -65,7 +68,7 @@ impl App {
                 }
             }
 
-            let delegate =DelegateImpl::new(self.stack.clone(), self.chunk_meta.clone(), self.raw_data_store.clone(), dmc.clone());
+            let delegate =DelegateImpl::new(self.stack.clone(), self.chunk_meta.clone(), self.raw_data_store.clone(), dmc.clone(), self.dec_id.clone());
             delegate.store.sync_chunk_data().await;
             delegate.store.first_proof().await;
             delegate.store.contract_end_del().await;

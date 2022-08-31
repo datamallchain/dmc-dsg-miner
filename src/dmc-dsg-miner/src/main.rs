@@ -51,7 +51,8 @@ async fn main() -> Result<()> {
         stack.clone(),
         meta_store.clone(),
         raw_data_store.clone(),
-        config.get_string("dmc_server").unwrap()).await?;
+        config.get_string("dmc_server").unwrap(),
+        dec_id.clone()).await?;
     if let Err(e) = app.init().await {
         if get_app_err_code(&e) != DMC_DSG_ERROR_REPORT_FAILED {
             BuckyResult::<()>::Err(e).unwrap();

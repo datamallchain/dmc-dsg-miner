@@ -15,15 +15,17 @@ pub struct MinerChallenge {
     meta_store: Arc<Box<dyn ContractMetaStore>>,
     raw_data_store: Arc<Box<dyn ContractChunkStore>>,
     dmc: DMCRef,
+    dec_id: ObjectId,
 }
 
 impl MinerChallenge {
-    pub fn new(stack: Arc<SharedCyfsStack>, meta_store: Arc<Box<dyn ContractMetaStore>>, raw_data_store: Arc<Box<dyn ContractChunkStore>>, dmc: DMCRef) -> Self {
+    pub fn new(stack: Arc<SharedCyfsStack>, meta_store: Arc<Box<dyn ContractMetaStore>>, raw_data_store: Arc<Box<dyn ContractChunkStore>>, dmc: DMCRef, dec_id: ObjectId) -> Self {
         Self{
             stack,
             meta_store,
             raw_data_store,
-            dmc
+            dmc,
+            dec_id
         }
     }
 
@@ -222,6 +224,7 @@ impl MinerChallenge {
         let dmc = self.dmc.clone();
 
         self.start_repair_sync_chunk_data().await;
+        let dec_id = self.dec_id.clone();
 
         spawn( async move {
             loop {
@@ -233,6 +236,7 @@ impl MinerChallenge {
                             let meta_store = meta_store.clone();
                             let stack = stack.clone();
                             let dmc = dmc.clone();
+                            let dec_id = dec_id.clone();
 
                             spawn( async move {
 
@@ -243,7 +247,7 @@ impl MinerChallenge {
                                 if let Ok(_contract) = meta_store.get(&contract_id).await {
                                     let mut cdstat = true;
 
-                                    if let Err(e) = Self::sync_chunk_to_local(stack.clone(), &chunk_list, vec![DeviceId::try_from(owner_id.clone()).unwrap()]).await {
+                                    if let Err(e) = Self::sync_chunk_to_local(stack.clone(), &chunk_list, vec![DeviceId::try_from(owner_id.clone()).unwrap()], dec_id.clone()).await {
                                         error!("sync chunk to local err {}", e);
                                         if let Err(e) = meta_store.update_down_status(&contract_id, SyncStatus::Wait).await {
                                             error!("change down status err: {:?}", e);
@@ -431,9 +435,9 @@ impl MinerChallenge {
         Ok(())
     }*/
 
-    pub async fn sync_chunk_to_local(stack: Arc<SharedCyfsStack>, chunk_list: &Vec<ChunkId>, source_list: Vec<DeviceId>) -> BuckyResult<()> {
+    pub async fn sync_chunk_to_local(stack: Arc<SharedCyfsStack>, chunk_list: &Vec<ChunkId>, source_list: Vec<DeviceId>, dec_id: ObjectId) -> BuckyResult<()> {
         for chunk_id in chunk_list {
-            Self::download(stack.clone(), chunk_id.object_id(), None, source_list.clone()).await?;
+            Self::download(stack.clone(), chunk_id.object_id(), None, source_list.clone(), dec_id.clone()).await?;
         }
 
         Ok(())
@@ -447,11 +451,11 @@ impl MinerChallenge {
 
 
 
-    pub async fn download(stack: Arc<SharedCyfsStack>, chunk_id: ObjectId, save_path: Option<PathBuf>, source_list: Vec<DeviceId>) -> BuckyResult<()> {
+    pub async fn download(stack: Arc<SharedCyfsStack>, chunk_id: ObjectId, save_path: Option<PathBuf>, source_list: Vec<DeviceId>, dec_id: ObjectId) -> BuckyResult<()> {
         let task_id = stack.trans().create_task(&TransCreateTaskOutputRequest {
             common: NDNOutputRequestCommon {
                 req_path: None,
-                dec_id: None,
+                dec_id: Some(dec_id.clone()),
                 level: NDNAPILevel::NDC,
                 target: None,
                 referer_object: vec![],
@@ -468,7 +472,7 @@ impl MinerChallenge {
             let state = stack.trans().get_task_state(&TransGetTaskStateOutputRequest {
                 common: NDNOutputRequestCommon {
                     req_path: None,
-                    dec_id: None,
+                    dec_id: Some(dec_id.clone()),
                     level: NDNAPILevel::NDC,
                     target: None,
                     referer_object: vec![],
@@ -503,7 +507,7 @@ impl MinerChallenge {
         stack.trans().delete_task(&TransTaskOutputRequest {
             common: NDNOutputRequestCommon {
                 req_path: None,
-                dec_id: None,
+                dec_id: Some(dec_id.clone()),
                 level: NDNAPILevel::NDC,
                 target: None,
                 referer_object: vec![],
@@ -576,9 +580,10 @@ impl DelegateImpl {
         stack: Arc<SharedCyfsStack>,
         meta_store: Arc<Box<dyn ContractMetaStore>>,
         raw_data_store: Arc<Box<dyn ContractChunkStore>>,
-        dmc: DMCRef) -> Self {
+        dmc: DMCRef,
+        dec_id: ObjectId) -> Self {
         Self {
-            store: Arc::new(MinerChallenge::new(stack, meta_store, raw_data_store, dmc))
+            store: Arc::new(MinerChallenge::new(stack, meta_store, raw_data_store, dmc, dec_id))
         }
     }
 
