@@ -43,6 +43,7 @@ impl DsgMinerInterface {
             proof.id(),
             proof.as_ref().to_vec().unwrap());
         req.common.target = Some(to.object_id().clone());
+        req.common.dec_id = Some(dsg_dec_id());
         let resp = self.stack().non_service().post_object(req).await
             .map_err(|err| {
                 log::error!("DsgMiner will request sign for proof failed, proof={}, to={}, err=post object {}", proof.id(), to, err);
