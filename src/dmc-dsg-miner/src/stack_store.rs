@@ -469,9 +469,15 @@ impl ContractMetaStore for StackStore {
     }
 
     async fn update_down_status(&self, contract_id: &ObjectId, down_stat: SyncStatus) -> BuckyResult<()> {
-        self.save_down_stat(contract_id, SyncStatus::Wait).await?;
+        self.save_down_stat(contract_id, down_stat.clone()).await?;
 
         match down_stat {
+            SyncStatus::Wait => {
+                self.contract_sync_set_add(contract_id).await?;
+            },
+            SyncStatus::Down => {
+                self.contract_sync_set_remove(contract_id).await?;
+            },
             SyncStatus::Success => {
                 self.contract_sync_set_remove(contract_id).await?;
                 self.contract_proof_set_add(contract_id).await?;
@@ -481,6 +487,7 @@ impl ContractMetaStore for StackStore {
             },
             _ => ()
         }
+
         Ok(())
     }
 

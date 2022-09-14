@@ -67,6 +67,7 @@ impl ContractCursor {
     }
 }
 
+#[derive(Debug,Clone)]
 pub enum SyncStatus {
     Wait,
     Success,
