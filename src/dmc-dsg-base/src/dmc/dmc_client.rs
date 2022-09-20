@@ -341,6 +341,8 @@ pub struct CyfsInfo {
     pub addr: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -375,8 +377,10 @@ pub enum DMCOrderState {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct DMCChallenge {
+pub struct DMCChallengeInfo {
     pub order_id: String,
+    pub pre_merkle_root: String,
+    pub pre_merkle_block_count: u64,
     pub merkle_root: String,
     pub data_block_count: u64,
     pub merkle_submitter: String,
@@ -814,11 +818,11 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         self.send_transaction(trans).await
     }
 
-    pub async fn get_challenge(
+    pub async fn get_challenge_info(
         &self,
         order_id: &str,
         limit: Option<i32>
-    ) -> BuckyResult<GetTableRowsResult<DMCChallenge>> {
+    ) -> BuckyResult<GetTableRowsResult<DMCChallengeInfo>> {
         let req = GetTableRowsReq {
             json: true,
             code: "eosio.token",

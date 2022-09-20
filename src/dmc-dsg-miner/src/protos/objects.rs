@@ -9,3 +9,19 @@ pub struct DmcContractData {
     #[prost(uint32, optional, tag="4")]
     pub chunk_size: ::core::option::Option<u32>,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ContractInfo {
+    #[prost(uint32, tag="1")]
+    pub contract_status: u32,
+    #[prost(uint64, tag="2")]
+    pub latest_check_time: u64,
+    #[prost(bytes="vec", repeated, tag="3")]
+    pub meta_merkle: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MetaData {
+    #[prost(bytes="vec", tag="1")]
+    pub contract: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes="vec", tag="2")]
+    pub state_list: ::prost::alloc::vec::Vec<u8>,
+}

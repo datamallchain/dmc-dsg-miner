@@ -7,6 +7,9 @@ mod dmc_dsg_config;
 mod dmc;
 mod setting;
 mod utils;
+mod meta_connection;
+mod future_helper;
+mod object_locker;
 
 pub use shared_cyfs_stack_ex::*;
 pub use json_object::*;
@@ -17,3 +20,6 @@ pub use dmc_dsg_config::*;
 pub use dmc::*;
 pub use setting::*;
 pub use utils::*;
+pub use meta_connection::*;
+pub use future_helper::*;
+pub use object_locker::*;

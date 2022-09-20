@@ -84,8 +84,7 @@ pub trait Verifier {
 impl <T: Serialize + for<'a> Deserialize<'a>> DSGJSON<T> for NamedObjectBase<JSONObjectType> {
     fn new(dec_id: ObjectId, owner_id: ObjectId, obj_type: u16, obj: &T) -> BuckyResult<JSONObject> {
         let body = JSONBodyContent(serde_json::to_vec(obj).map_err(|e| {
-            log::info!("serde json err:{}", e);
-            crate::app_err!(APP_ERROR_FAILED)
+            app_err!(APP_ERROR_FAILED, "serde json err:{}", e)
         })?);
 
         let desc = JSONDescContent { obj_type, content_hash: hash_data(body.as_slice()) };
@@ -97,9 +96,7 @@ impl <T: Serialize + for<'a> Deserialize<'a>> DSGJSON<T> for NamedObjectBase<JSO
         let body = self.body().as_ref().unwrap().content();
         serde_json::from_slice(body.as_ref()).map_err(|e| {
             let str = String::from_utf8_lossy(body.as_slice()).to_string();
-            let msg = format!("parse {} body err:{}", str, e);
-            log::info!("{}", msg);
-            app_err2!(APP_ERROR_FAILED, msg)
+            app_err!(APP_ERROR_FAILED, "parse {} body err:{}", str, e)
         })
     }
 

@@ -2,15 +2,11 @@ use cyfs_base::{BuckyError, BuckyErrorCode};
 
 #[macro_export]
 macro_rules! app_err {
-    ( $err: expr) => {
-    cyfs_base::BuckyError::new(cyfs_base::BuckyErrorCodeEx::DecError($err as u16), format!("{}:{} app_code_err:{}", file!(), line!(), stringify!($err)))
-    };
-}
-
-#[macro_export]
-macro_rules! app_err2 {
-    ( $err: expr, $msg: expr) => {
-    cyfs_base::BuckyError::new(cyfs_base::BuckyErrorCodeEx::DecError($err as u16), format!("{}:{} app_code_err:{} msg:{}", file!(), line!(), stringify!($err), $msg))
+    ( $err: expr, $($arg:tt)*) => {
+        {
+            log::error!("{} {}", stringify!($err), format!($($arg)*));
+            cyfs_base::BuckyError::new(cyfs_base::BuckyErrorCodeEx::DecError($err as u16), format!("{}:{} app_code_err:{} msg:{}", file!(), line!(), stringify!($err), format!($($arg)*)))
+        }
     };
 }
 

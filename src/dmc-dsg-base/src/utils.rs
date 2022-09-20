@@ -13,7 +13,7 @@ impl <T: ?Sized> ArcWeakHelper<T> for std::sync::Weak<T> {
                 Ok(v)
             },
             None => {
-                Err(crate::app_err!(APP_ERROR_FAILED))
+                Err(crate::app_err!(APP_ERROR_FAILED, "weak err"))
             }
         }
     }

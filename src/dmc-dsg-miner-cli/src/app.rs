@@ -2,7 +2,7 @@ use std::sync::Arc;
 use async_std::task::JoinHandle;
 use cyfs_base::{BuckyErrorCode, BuckyResult, NamedObject, ObjectDesc, ObjectId, OwnerObjectDesc, RawConvertTo};
 use cyfs_lib::{SharedCyfsStack, UtilGetSystemInfoOutputRequest};
-use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, SharedCyfsStackEx, SimpleSignatureProvider, cyfs_err, SetDMCAccount, DMCPrivateKey, CyfsPath};
+use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, CyfsNOC, SimpleSignatureProvider, cyfs_err, SetDMCAccount, DMCPrivateKey};
 
 pub struct DmcInfo {
     pub dmc_account: String,

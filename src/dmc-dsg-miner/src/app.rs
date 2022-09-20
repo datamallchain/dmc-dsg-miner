@@ -2,15 +2,15 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use cyfs_base::*;
 use cyfs_lib::SharedCyfsStack;
-use dmc_dsg_base::{app_err2, app_msg, DMCPrivateKey, Setting, SettingRef, DMC_DSG_ERROR_REPORT_FAILED, cyfs_err};
-use crate::{ContractChunkStore, ContractMetaStore, DelegateImpl, DMC, OodMiner};
+use dmc_dsg_base::{app_err, DMCPrivateKey, Setting, SettingRef, DMC_DSG_ERROR_REPORT_FAILED, cyfs_err};
+use crate::{CyfsStackFileDownloader, CyfsStackMetaStore, DMC, DmcDsgMiner, NocChunkStore, OodMiner};
 
 pub struct App {
     setting: SettingRef,
-    chunk_meta: Arc<Box<dyn ContractMetaStore>>,
-    raw_data_store: Arc<Box<dyn ContractChunkStore>>,
+    chunk_meta: Arc<CyfsStackMetaStore>,
+    raw_data_store: Arc<NocChunkStore>,
     stack: Arc<SharedCyfsStack>,
-    miner: Mutex<Option<OodMiner<DelegateImpl>>>,
+    miner: Mutex<Option<OodMiner>>,
     dmc_server: String,
     dec_id: ObjectId,
 }
@@ -19,8 +19,8 @@ pub type AppRef = Arc<App>;
 impl App {
     pub async fn new(
         stack: Arc<SharedCyfsStack>,
-        chunk_meta: Arc<Box<dyn ContractMetaStore>>,
-        raw_data_store: Arc<Box<dyn ContractChunkStore>>,
+        chunk_meta: Arc<CyfsStackMetaStore>,
+        raw_data_store: Arc<NocChunkStore>,
         dmc_server: String,
         dec_id: ObjectId,
     ) -> BuckyResult<AppRef> {
@@ -49,16 +49,9 @@ impl App {
         }
 
         let dmc_account = self.get_dmc_account().await?;
-        if !dmc_account.is_empty() || cfg!(feature = "test_contract_sync") {
-            let dmc_account;
-            let dmc_key;
-            if cfg!(not(feature = "test_contract_sync")) {
-                dmc_account = self.get_dmc_account().await?;
-                dmc_key = self.get_dmc_key(dmc_account.clone()).await?;
-            } else {
-                dmc_account = String::from("testdmcdsg11");
-                dmc_key = String::from("5K5DspRRkx8yfGqUjXJMCwsZrHV78rLH3DkoJK4QaCEA9Bnz8MW");
-            }
+        if !dmc_account.is_empty() {
+            let dmc_account = self.get_dmc_account().await?;
+            let dmc_key = self.get_dmc_key(dmc_account.clone()).await?;
             let dmc = DMC::new(
                 self.stack.clone(),
                 self.chunk_meta.clone(),
@@ -67,23 +60,26 @@ impl App {
                 dmc_account.as_str(),
                 dmc_key.clone(),
                 self.get_http_domain().await?)?;
-
-            if cfg!(not(feature = "test_contract_sync")) {
-                if let Err(e) = dmc.report_cyfs_info().await {
-                    return if e.code() == BuckyErrorCode::InvalidData {
-                        Err(app_err2!(DMC_DSG_ERROR_REPORT_FAILED, app_msg!("{}", e)))
-                    } else {
-                        Err(e)
-                    }
+            if let Err(e) = dmc.report_cyfs_info().await {
+                return if e.code() == BuckyErrorCode::InvalidData {
+                    Err(app_err!(DMC_DSG_ERROR_REPORT_FAILED, "{}", e))
+                } else {
+                    Err(e)
                 }
             }
 
-            let delegate =DelegateImpl::new(self.stack.clone(), self.chunk_meta.clone(), self.raw_data_store.clone(), dmc.clone(), self.dec_id.clone());
-            delegate.store.sync_chunk_data().await;
-            delegate.store.first_proof().await;
-            delegate.store.contract_end_del().await;
+            let miner = Arc::new(DmcDsgMiner::new(
+                self.stack.clone(),
+                self.chunk_meta.clone(),
+                self.raw_data_store.clone(),
+                dmc.clone(),
+                self.dec_id.clone(),
+                CyfsStackFileDownloader::new(self.stack.clone(), self.dec_id.clone())));
+            miner.start_chunk_sync().await?;
+            miner.start_proof_resp().await;
+            miner.start_contract_end_check().await;
 
-            let service = OodMiner::new(self.stack.clone(), delegate).await?;
+            let service = OodMiner::new(self.stack.clone(), miner.clone()).await?;
             *self.miner.lock().unwrap() = Some(service);
         }
         Ok(())

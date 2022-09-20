@@ -64,21 +64,6 @@ impl NocChunkStore {
 
         Ok(rsp.data)
     }
-
-    pub async fn build_merkle_tree(
-        &self,
-        chunk_list: &Vec<ChunkId>,
-        chunk_size: u32
-    ) -> BuckyResult<MerkleTree<AsyncMerkleChunkReader, HashVecStore<Vec<u8>>>> {
-        let len = chunk_list.len() as u64 * chunk_size as u64;
-        let leafs = if len % DSG_CHUNK_PIECE_SIZE == 0 { len / DSG_CHUNK_PIECE_SIZE } else { len / DSG_CHUNK_PIECE_SIZE + 1};
-        let merkle = MerkleTree::create_from_raw(
-            AsyncMerkleChunkReader::new(
-                MerkleChunkReader::new(self.stack.clone(), chunk_list.clone(), chunk_size)),
-            HashVecStore::<Vec<u8>>::new::<MemVecCache>(leafs)?).await?;
-        Ok(merkle)
-    }
-
 }
 
 #[async_trait::async_trait]
@@ -120,12 +105,6 @@ impl ContractChunkStore for NocChunkStore {
         reader.read_to_end(&mut buf).await?;
 
         Ok(buf)
-    }
-
-    async fn get_merkle(&self, chunk_list: Vec<ChunkId>, _contract_id: &ObjectId, chunk_size: u32) -> BuckyResult<MerkleTree<AsyncMerkleChunkReader, HashVecStore<Vec<u8>>>> {
-        let merkle = self.build_merkle_tree(&chunk_list, chunk_size).await?;
-
-        Ok(merkle)
     }
 
     async fn get_contract_data(&self, chunk_list: Vec<ChunkId>, range: Range<u64>, chunk_size: u32) -> BuckyResult<Vec<u8>> {

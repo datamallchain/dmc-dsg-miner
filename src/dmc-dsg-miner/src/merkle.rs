@@ -2,13 +2,11 @@ use std::convert::{TryInto};
 use std::io::SeekFrom;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
 use sha2::{Digest};
 use cyfs_base::*;
 use async_std::io::Cursor;
 use async_std::io::prelude::SeekExt;
 use async_std::io::ReadExt;
-use memmap2::MmapMut;
 
 #[async_trait::async_trait]
 pub trait HashStore: Send + Sync {
@@ -29,37 +27,6 @@ impl VecCache<Vec<u8>> for MemVecCache {
         let mut cache = Vec::with_capacity(len as usize);
         cache.resize(len as usize, 0);
         Ok(cache)
-    }
-}
-
-pub struct MmapVecCache;
-
-pub fn get_tmp_path() -> BuckyResult<PathBuf> {
-    let file = tempfile::NamedTempFile::new()?;
-    let save_path = file.path();
-    Ok(save_path.to_owned())
-}
-
-impl VecCache<MmapMut> for MmapVecCache {
-    fn create(len: u64) -> BuckyResult<MmapMut> {
-        unsafe {
-            let file = tempfile::NamedTempFile::new().map_err(|e| {
-                let msg = format!("[{}:{}] open file failed.err {}", file!(), line!().to_string(), e);
-                log::error!("{}", msg.as_str());
-                BuckyError::new(BuckyErrorCode::Failed, msg)
-            })?;
-            file.as_file().set_len(len).map_err(|e| {
-                let msg = format!("[{}:{}] set file  len {} failed.err {}", file!(), line!(), len, e);
-                log::error!("{}", msg.as_str());
-                BuckyError::new(BuckyErrorCode::Failed, msg)
-            })?;
-            let mmap = MmapMut::map_mut(&file).map_err(|e| {
-                let msg = format!("[{}:{}] create file map failed.err {}", file!(), line!(), e);
-                log::error!("{}", msg.as_str());
-                BuckyError::new(BuckyErrorCode::Failed, msg)
-            })?;
-            Ok(mmap)
-        }
     }
 }
 
@@ -90,6 +57,8 @@ impl <T: Send + Sync + Deref<Target=[u8]> + DerefMut<Target=[u8]>> HashVecStore<
             }
         }
         let cache = C::create(count * 32)?;
+        // let mut cache = Vec::with_capacity(count as usize * 32);
+        // cache.resize(count as usize * 32, 0);
         Ok(Self {
             layer_info,
             cache,
@@ -180,6 +149,7 @@ impl <T: Send + Sync + Deref<Target=[u8]> + DerefMut<Target=[u8]>> HashStore for
                     Err(BuckyError::new(BuckyErrorCode::NotFound, msg))
                 } else {
                     let hash = (&self.cache[(*offset + index - self.min_offset) as usize * 32..(*offset + index - self.min_offset + 1) as usize * 32]).try_into().unwrap();
+                    // println!("get node layer {} index {} hash {}", layer_number, index, hex::encode(hash));
                     Ok(hash)
                 }
             },
@@ -193,6 +163,7 @@ impl <T: Send + Sync + Deref<Target=[u8]> + DerefMut<Target=[u8]>> HashStore for
     }
 
     async fn set_node(&mut self, layer_number: u16, index: u64, hash: &[u8;32]) -> BuckyResult<()> {
+        // log::info!("set node layer {} index {} hash {}", layer_number, index, hex::encode(hash));
         match self.layer_info.get( layer_number as usize) {
             Some((offset, len)) => {
                 if index >= *len {
@@ -221,7 +192,7 @@ impl <T: Send + Sync + Deref<Target=[u8]> + DerefMut<Target=[u8]>> HashStore for
 
 pub struct MerkleTree<READ: async_std::io::Read + async_std::io::Seek + Send, CACHE: HashStore> {
     cache: CACHE,
-    reader: READ,
+    reader: Option<READ>,
     root: [u8;32],
 }
 
@@ -310,13 +281,13 @@ impl <READ: async_std::io::Read + async_std::io::Seek + Send + Unpin, CACHE: Has
         }
         let root = root.clone();
         Ok(Self {
-            reader,
+            reader: Some(reader),
             cache,
             root
         })
     }
 
-    pub async fn create_from_base(reader: READ, mut cache: CACHE, base_layer: u16) -> BuckyResult<Self> {
+    pub async fn create_from_base(reader: Option<READ>, mut cache: CACHE, base_layer: u16) -> BuckyResult<Self> {
         let root;
         let mut layer_number = base_layer + 1;
         loop {
@@ -368,7 +339,7 @@ impl <READ: async_std::io::Read + async_std::io::Seek + Send + Unpin, CACHE: Has
         let root = root.clone();
         Ok(Self {
             cache,
-            reader,
+            reader: Some(reader),
             root
         })
     }
@@ -381,13 +352,13 @@ impl <READ: async_std::io::Read + async_std::io::Seek + Send + Unpin, CACHE: Has
         let mut buf = Vec::<u8>::new();
         buf.resize(len as usize, 0);
 
-        self.reader.seek(SeekFrom::Start(pos as u64)).await.map_err(|e| {
+        self.reader.as_mut().unwrap().seek(SeekFrom::Start(pos as u64)).await.map_err(|e| {
             let msg = format!("merkle tree seek err {}", e);
             log::error!("{}", msg.as_str());
             BuckyError::new(BuckyErrorCode::Failed, msg)
         })?;
 
-        let size = self.reader.read(&mut buf).await.map_err(|e| {
+        let size = self.reader.as_mut().unwrap().read(&mut buf).await.map_err(|e| {
             let msg = format!("merkle tree read err {}", e);
             log::error!("{}", msg.as_str());
             BuckyError::new(BuckyErrorCode::Failed, msg)
@@ -398,6 +369,11 @@ impl <READ: async_std::io::Read + async_std::io::Seek + Send + Unpin, CACHE: Has
 
     #[async_recursion::async_recursion]
     async fn gen_proof_tree_path(&mut self, index: u64) -> BuckyResult<(Vec<[u8;32]>, Vec<u8>)> {
+        if self.reader.is_none() {
+            let msg = format!("reader is none");
+            log::error!("{}", msg.as_str());
+            return Err(BuckyError::new(BuckyErrorCode::Failed, msg));
+        }
         let piece_pos = index as u64 * DSG_CHUNK_PIECE_SIZE as u64;
         let min_layer = self.cache.get_min_layer_number().await?;
         let (mut cur_index, mut cur_layer, mut path_list, piece) = if min_layer == 0 {
@@ -414,13 +390,13 @@ impl <READ: async_std::io::Read + async_std::io::Seek + Send + Unpin, CACHE: Has
 
             let mut buf = Vec::<u8>::with_capacity(read_len as usize);
 
-            self.reader.seek(SeekFrom::Start(read_pos as u64)).await.map_err(|e| {
+            self.reader.as_mut().unwrap().seek(SeekFrom::Start(read_pos as u64)).await.map_err(|e| {
                 let msg = format!("merkle tree seek err {}", e);
                 log::error!("{}", msg.as_str());
                 BuckyError::new(BuckyErrorCode::Failed, msg)
             })?;
 
-            let size = self.reader.by_ref().take(read_len).read_to_end(&mut buf).await.map_err(|e| {
+            let size = self.reader.as_mut().unwrap().by_ref().take(read_len).read_to_end(&mut buf).await.map_err(|e| {
                 let msg = format!("merkle tree read err {}", e);
                 log::error!("{}", msg.as_str());
                 BuckyError::new(BuckyErrorCode::Failed, msg)
@@ -559,27 +535,33 @@ impl <'de> RawDecode<'de> for SinglePieceProof {
 
 impl SinglePieceProof {
     pub fn verify(&self, root: &[u8;32]) -> bool {
+        // log::info!("verify piece {}", self.piece_index);
         let mut cur_node: [u8;32] = {
             let mut sha256 = sha2::Sha256::new();
             sha256.update(self.piece.as_slice());
             sha256.finalize().into()
         };
+        // log::info!("verify {}", hex::encode(&cur_node));
         let mut cur_index = self.piece_index;
         for node in self.path_list.iter() {
             let mut sha256 = sha2::Sha256::new();
             if cur_index % 2 != 0 {
                 sha256.update(node);
+                log::info!("verify left {}", hex::encode(&node));
                 sha256.update(&cur_node);
                 cur_node = sha256.finalize().into();
             } else {
                 sha256.update(&cur_node);
                 sha256.update(node);
+                // log::info!("verify right {}", hex::encode(&node));
                 cur_node = sha256.finalize().into();
             }
+            // log::info!("verify {}", hex::encode(&cur_node));
 
             cur_index = cur_index / 2;
         }
 
+        // log::info!("verify {}", hex::encode(&cur_node));
         &cur_node == root
     }
 }

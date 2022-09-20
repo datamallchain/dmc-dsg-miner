@@ -44,9 +44,9 @@ async fn main() -> Result<()> {
     let stack = Arc::new(SharedCyfsStack::open_default(Some(dec_id.clone())).await.unwrap());
     stack.wait_online(None).await.unwrap();
 
-    let meta_store: Arc<Box<dyn ContractMetaStore>> = Arc::new(Box::new(StackStore::new(stack.clone())));
+    let meta_store = CyfsStackMetaStore::create(stack.clone()).await.unwrap();
 
-    let raw_data_store: Arc<Box<dyn ContractChunkStore>> = Arc::new(Box::new(NocChunkStore::new(stack.clone())));
+    let raw_data_store = Arc::new(NocChunkStore::new(stack.clone()));
 
     let app = App::new(
         stack.clone(),

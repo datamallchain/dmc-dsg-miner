@@ -20,6 +20,9 @@ mod raw_obj;
 mod service;
 mod app;
 mod merkle_chunk_reader;
+mod contract_info;
+mod meta_store;
+mod file_downloader;
 
 pub use miner_config::*;
 pub use miner::*;
@@ -36,3 +39,6 @@ pub use dmc_dsg_base::*;
 pub use service::*;
 pub use app::*;
 pub use merkle_chunk_reader::*;
+pub use contract_info::*;
+pub use meta_store::*;
+pub use file_downloader::*;
