@@ -95,10 +95,17 @@ impl App {
         Ok(())
     }
 
+    #[cfg(not(feature = "no_dmc"))]
     pub async fn get_dmc_account(&self) -> BuckyResult<String> {
         Ok(self.setting.get_setting("dmc_account", ""))
     }
 
+    #[cfg(feature = "no_dmc")]
+    pub async fn get_dmc_account(&self) -> BuckyResult<String> {
+        Ok("test".to_string())
+    }
+
+    #[cfg(not(feature = "no_dmc"))]
     pub async fn get_dmc_key(&self, dmc_account: String) -> BuckyResult<String> {
         let key_name = format!("{}_dmc_key", dmc_account);
         let private_key = self.setting.get_setting(key_name.as_str(), "");
@@ -109,6 +116,11 @@ impl App {
         };
 
         Ok(dmc_private_key)
+    }
+
+    #[cfg(feature = "no_dmc")]
+    pub async fn get_dmc_key(&self, _dmc_account: String) -> BuckyResult<String> {
+        DMCPrivateKey::gen_key().to_legacy_string()
     }
 
     pub async fn get_dmc_public_key(&self, dmc_account: String) -> BuckyResult<String> {

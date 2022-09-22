@@ -354,9 +354,6 @@ impl CyfsStackMetaConnection {
             let raw_obj = RawObject::new(ObjectId::default(), ObjectId::default(), 0, raw_data)?;
             let new_obj_id = raw_obj.desc().object_id();
             if new_obj_id != cur_obj_id {
-                if cur_obj_id != ObjectId::default() {
-                    self.delete_object_from_noc(cur_obj_id.clone()).await?;
-                }
                 cur_obj_id = new_obj_id;
                 self.put_object_to_noc(cur_obj_id.clone(), &raw_obj).await?;
             }
@@ -376,20 +373,13 @@ impl CyfsStackMetaConnection {
         let _ = self.stack.non_service().put_object(NONPutObjectOutputRequest::new(NONAPILevel::NOC, id, object.to_vec()?)).await?;
         Ok(())
     }
-
-    async fn delete_object_from_noc(&self, id: ObjectId) -> BuckyResult<()> {
-        self.stack.non_service().delete_object(NONDeleteObjectOutputRequest::new(NONAPILevel::NOC, id, None)).await?;
-
-        Ok(())
-    }
-
 }
 
 #[async_trait::async_trait]
 impl ContractMetaStore for CyfsStackMetaConnection {
     async fn get_contract(&mut self, contract_id: &ObjectId) -> BuckyResult<Option<DsgContractObject<DMCContractData>>> {
         if let Some(obj_id) = self.get_by_path(format!("/miner/contracts/{}/", contract_id), "contract").await? {
-           self.get_object_from_noc(obj_id).await
+           Ok(Some(self.get_object_from_noc(obj_id).await?))
         } else {
             Ok(None)
         }
@@ -457,7 +447,7 @@ impl ContractMetaStore for CyfsStackMetaConnection {
             }
 
             let set = ContractList(cset);
-            self.save_by_path("/miner/contracts/list_syn/", "contract_syn_set", Some(&set_id), None, Some(&set)).await?;
+            self.save_by_path("/miner/contracts/list_syn/", "contract_syn_set", None, None, Some(&set)).await?;
         }
 
         Ok(())

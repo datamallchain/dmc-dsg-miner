@@ -62,4 +62,4 @@ prost = {version = "0.9"}
 prost-build = {version = "0.9"}
 
 [features]
-test_contract_sync = []
+no_dmc = []

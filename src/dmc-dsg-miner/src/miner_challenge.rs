@@ -106,7 +106,6 @@ impl<CLIENT: CyfsClient,
                 (contract.unwrap(), true)
             } else {
                 let contract = self.client.get_object(Some(owner_id.clone()), contract_id.clone()).await?;
-                conn.begin().await?;
                 (contract, false)
             }
         };
@@ -163,7 +162,7 @@ impl<CLIENT: CyfsClient,
 
     async fn get_wait_sync(&self) -> BuckyResult<Vec<ObjectId>> {
         let mut conn = self.meta_store.create_meta_connection().await?;
-        let list = conn.contract_set().await?;
+        let list = conn.contract_sync_set().await?;
         let mut wait_list = Vec::new();
         for contract_id in list.iter() {
             let syncing_set = self.syncing_contracts.lock().unwrap();
@@ -276,9 +275,8 @@ impl<CLIENT: CyfsClient,
                     conn.contract_set_add(&vec![contract_id.clone()]).await?;
                 }
             }
-
+            conn.commit().await?;
         }
-        conn.commit().await?;
 
         Ok(())
     }
@@ -293,6 +291,9 @@ impl<CLIENT: CyfsClient,
                         for contract_id in vecs {
                             {
                                 let mut syncing_contract = this.syncing_contracts.lock().unwrap();
+                                if syncing_contract.contains(&contract_id) {
+                                    continue;
+                                }
                                 syncing_contract.insert(contract_id.clone());
                             }
                             let this = this.clone();
@@ -362,6 +363,7 @@ impl<CLIENT: CyfsClient,
     pub async fn start_contract_end_check(self: &Arc<Self>) {
         let this = self.clone();
 
+        #[cfg(not(feature = "no_dmc"))]
         spawn( async move {
             loop {
                 if let Err(e) = this.check_contract_end().await {
@@ -494,6 +496,19 @@ impl<CLIENT: CyfsClient,
             }
         }
         Ok(())
+    }
+
+    pub async fn get_order_info(&self, order: &str) -> BuckyResult<(ObjectId, ObjectId)> {
+        let mut conn = self.meta_store.create_meta_connection().await?;
+        let contract_id = conn.get_contract_id_by_dmc_order(order).await?;
+        if contract_id.is_none() {
+            return Err(cyfs_err!(BuckyErrorCode::NotFound, "can't find order {}'s contract", order))
+        }
+        let state_id = conn.get_contract_state_id(contract_id.as_ref().unwrap()).await?;
+        if state_id.is_none() {
+            return Err(cyfs_err!(BuckyErrorCode::NotFound, "can't find order {}'s state", order))
+        }
+        Ok((contract_id.unwrap(), state_id.unwrap()))
     }
 }
 

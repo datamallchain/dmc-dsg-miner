@@ -10,14 +10,17 @@ use crate::*;
 #[derive(Clone)]
 pub struct OodMiner {
     stack: Arc<SharedCyfsStack>,
+    owner_id: ObjectId,
     miner: Arc<DmcDsgMiner<SharedCyfsStack, CyfsStackMetaConnection, CyfsStackMetaStore, NocChunkStore, CyfsStackFileDownloader>>
 }
 
 
 impl OodMiner {
     pub async fn new(stack: Arc<SharedCyfsStack>, miner: Arc<DmcDsgMiner<SharedCyfsStack, CyfsStackMetaConnection, CyfsStackMetaStore, NocChunkStore, CyfsStackFileDownloader>>) -> BuckyResult<Self> {
+        let owner_id = stack.local_device().desc().owner().as_ref().unwrap().clone();
         let miner = Self {
             stack,
+            owner_id,
             miner
         };
         let _ = miner.listen()?;
@@ -80,14 +83,32 @@ impl OodMiner {
             async fn call(&self, param: &RouterHandlerPostObjectRequest) -> BuckyResult<RouterHandlerPostObjectResult> {
                 log::info!("OnCommand, id={}, from={}", param.request.object.object_id, param.request.common.source);
                 let req = JSONObject::clone_from_slice(param.request.object.object_raw.as_slice())?;
-
-                Ok(RouterHandlerPostObjectResult {
-                    action: RouterHandlerAction::Response,
-                    request: None,
-                    response: Some(Ok(NONPostObjectInputResponse {
-                        object: None
-                    }))
-                })
+                let ret = if req.get_json_obj_type() == 10000 {
+                    self.miner.on_get_order_info(req.get()?).await?
+                } else {
+                    None
+                };
+                if ret.is_none() {
+                    Ok(RouterHandlerPostObjectResult {
+                        action: RouterHandlerAction::Response,
+                        request: None,
+                        response: Some(Ok(NONPostObjectInputResponse {
+                            object: None
+                        }))
+                    })
+                } else {
+                    Ok(RouterHandlerPostObjectResult {
+                        action: RouterHandlerAction::Response,
+                        request: None,
+                        response: Some(Ok(NONPostObjectInputResponse {
+                            object: Some(NONObjectInfo {
+                                object_id: ret.as_ref().unwrap().desc().calculate_id(),
+                                object_raw: ret.as_ref().unwrap().to_vec()?,
+                                object: None
+                            })
+                        }))
+                    })
+                }
             }
         }
 
@@ -95,7 +116,7 @@ impl OodMiner {
             RouterHandlerChain::Handler,
             "OnCommand",
             0,
-            format!("dec_id = {} && obj_type == {}", dsg_dec_id(), JSONDescContent::obj_type()).as_str(),
+            format!("dec_id == {} && obj_type == {}", dsg_dec_id(), JSONDescContent::obj_type()).as_str(),
             RouterHandlerAction::Default,
             Some(Box::new(OnCommand {
                 miner: self.clone()
@@ -106,6 +127,12 @@ impl OodMiner {
     }
 
     async fn on_get_order_info(&self, order: String) -> BuckyResult<Option<JSONObject>> {
-        Ok(None)
+        let (contract_id, state_id) = self.miner.get_order_info(order.as_str()).await?;
+        Ok(Some(JSONObject::new(
+            dsg_dec_id(),
+            self.owner_id.clone(),
+            10001,
+            &(contract_id.to_string(), state_id.to_string())
+        )?))
     }
 }

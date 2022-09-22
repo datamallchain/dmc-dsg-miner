@@ -69,6 +69,7 @@ impl<
         });
 
         let tmp_dmc = dmc.clone();
+        #[cfg(not(feature = "no_dmc"))]
         async_std::task::spawn(async move {
             loop {
                 if let Err(e) = tmp_dmc.check_challenge().await {
@@ -82,12 +83,15 @@ impl<
     }
 
     pub async fn report_cyfs_info(&self) -> BuckyResult<()> {
-        let addr = self.stack.local_device().desc().owner().as_ref().unwrap().to_string();
-        self.dmc_client.report_cyfs_info(&CyfsInfo {
-            addr,
-            http: if self.http_domain.is_empty() {None} else {Some(self.http_domain.clone())},
-            v: Some(2)
-        }).await?;
+        #[cfg(not(feature = "no_dmc"))]
+        {
+            let addr = self.stack.local_device().desc().owner().as_ref().unwrap().to_string();
+            self.dmc_client.report_cyfs_info(&CyfsInfo {
+                addr,
+                http: if self.http_domain.is_empty() {None} else {Some(self.http_domain.clone())},
+                v: Some(2)
+            }).await?;
+        }
         Ok(())
     }
 
@@ -203,45 +207,56 @@ impl<
             log::info!("recv contract dmc_order {}", dmc_data.order_id.as_str());
         }
 
-        let order = self.dmc_client.get_order_of_miner(dmc_data.order_id.as_str()).await?;
+        #[cfg(not(feature = "no_dmc"))]
+        {
+            let order = self.dmc_client.get_order_of_miner(dmc_data.order_id.as_str()).await?;
 
-        if order.is_some() {
-            let cyfs_info = self.dmc_client.get_cyfs_info(order.as_ref().unwrap().user.clone()).await?;
-            if cyfs_info.addr == source.to_string() {
-                return Ok(true)
+            if order.is_some() {
+                let cyfs_info = self.dmc_client.get_cyfs_info(order.as_ref().unwrap().user.clone()).await?;
+                if cyfs_info.addr == source.to_string() {
+                    return Ok(true)
+                } else {
+                    log::info!("address unmatch {} expect {}", source.to_string(), cyfs_info.addr.as_str());
+                }
             } else {
-                log::info!("address unmatch {} expect {}", source.to_string(), cyfs_info.addr.as_str());
+                log::info!("can't find order {}", dmc_data.order_id.as_str());
             }
-        } else {
-            log::info!("can't find order {}", dmc_data.order_id.as_str());
+            return Ok(false);
         }
-        Ok(false)
+
+        #[cfg(feature = "no_dmc")]
+        {
+            return Ok(true);
+        }
     }
 
     pub async fn report_merkle_hash(&self, contract_id: &ObjectId, merkle_root: HashValue, piece_count: u64) -> BuckyResult<()> {
-        let mut conn = self.contract_store.create_meta_connection().await?;
-        let contract = conn.get_contract(contract_id).await?;
-        assert!(contract.is_some());
-        let contract_ref = DsgContractObjectRef::from(contract.as_ref().unwrap());
-        let dmc_data = contract_ref.witness();
+        #[cfg(not(feature = "no_dmc"))]
+        {
+            let mut conn = self.contract_store.create_meta_connection().await?;
+            let contract = conn.get_contract(contract_id).await?;
+            assert!(contract.is_some());
+            let contract_ref = DsgContractObjectRef::from(contract.as_ref().unwrap());
+            let dmc_data = contract_ref.witness();
 
-        let challenge_info = self.dmc_client.get_challenge_info(dmc_data.order_id.as_str(), None).await?;
-        if challenge_info.rows.len() == 0 {
-            return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "get order {} challenge info failed", dmc_data.order_id.as_str()));
-        }
+            let challenge_info = self.dmc_client.get_challenge_info(dmc_data.order_id.as_str(), None).await?;
+            if challenge_info.rows.len() == 0 {
+                return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "get order {} challenge info failed", dmc_data.order_id.as_str()));
+            }
 
-        let info = &challenge_info.rows[0];
-        if info.state != DMCChallengeState::ChallengePrepare as u32 {
-            return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "order {} state is {}, expect ChallengePrepare", dmc_data.order_id.as_str(), info.state));
-        }
+            let info = &challenge_info.rows[0];
+            if info.state != DMCChallengeState::ChallengePrepare as u32 {
+                return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "order {} state is {}, expect ChallengePrepare", dmc_data.order_id.as_str(), info.state));
+            }
 
-        if info.pre_merkle_root != merkle_root.to_string() || info.pre_merkle_block_count != piece_count {
-            return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "order {} merkle root is unmatched.user committed {} {}, miner {} {}",
+            if info.pre_merkle_root != merkle_root.to_string() || info.pre_merkle_block_count != piece_count {
+                return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "order {} merkle root is unmatched.user committed {} {}, miner {} {}",
                 dmc_data.order_id.as_str(), info.pre_merkle_root, info.pre_merkle_block_count, merkle_root.to_string(), piece_count));
+            }
+
+            self.dmc_client.add_merkle(dmc_data.order_id.as_str(), merkle_root, piece_count).await?;
+
         }
-
-        self.dmc_client.add_merkle(dmc_data.order_id.as_str(), merkle_root, piece_count).await?;
-
         Ok(())
     }
 
