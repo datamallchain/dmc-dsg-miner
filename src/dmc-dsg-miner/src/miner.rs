@@ -129,7 +129,7 @@ impl<D> OodMiner<D>
                 delegate
             })
         };
-        let _ = miner.listen()?;
+        let _ = miner.listen().await?;
         Ok(miner)
     }
 
@@ -141,7 +141,7 @@ impl<D> OodMiner<D>
         &self.inner.delegate
     }
 
-    fn listen(&self) -> BuckyResult<()> {
+    async fn listen(&self) -> BuckyResult<()> {
         struct OnChallenge<D>
             where D: 'static + DsgMinerDelegate {
             miner: OodMiner<D>
@@ -157,7 +157,8 @@ impl<D> OodMiner<D>
                         log::info!("{} OnChallenge failed, id={}, from={}, err=decode challenge {}", self.miner, param.request.object.object_id, param.request.common.source, err);
                         err
                     })?;
-                let _ = self.miner.delegate().on_challenge(self.miner.interface(), challenge, param.request.common.source.clone()).await
+
+                let _ = self.miner.delegate().on_challenge(self.miner.interface(), challenge, param.request.common.source.zone.device.clone().unwrap()).await
                     .map_err(|err| {
                         log::info!("{} OnChallenge failed, id={}, from={}, err=delegate {}", self.miner, param.request.object.object_id, param.request.common.source, err);
                         err
@@ -172,11 +173,21 @@ impl<D> OodMiner<D>
             }
         }
 
+        let path = RequestGlobalStatePath::new(Some(self.interface().stack().local_device_id().object_id().to_owned()), Some("/dmc/dsg/miner/")).format_string();
+        let access = AccessString::default();
+        let item = GlobalStatePathAccessItem {
+            path: path.clone(),
+            access: GlobalStatePathGroupAccess::Default(access.value()),
+        };
+        self.interface().stack().root_state_meta_stub(Some(self.interface().stack().local_device_id().object_id().to_owned()), None).add_access(item).await?;
+
+
         let _ = self.interface().stack().router_handlers().add_handler(
             RouterHandlerChain::Handler,
             "OnChallenge",
             0,
-            format!("dec_id == {} && obj_type == {}", cyfs_dsg_client::dsg_dec_id(),  DsgChallengeDesc::obj_type()).as_str(),
+            Some(format!("dec_id == {} && obj_type == {}", cyfs_dsg_client::dsg_dec_id(),  DsgChallengeDesc::obj_type())),
+            Some(path),
             RouterHandlerAction::Default,
             Some(Box::new(OnChallenge {miner: self.clone()}))
         )?;

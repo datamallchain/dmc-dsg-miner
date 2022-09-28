@@ -1,0 +1,4 @@
+[submodule "CYFS"]
+	path = CYFS
+	url = https://github.com/buckyos/CYFS.git
+	branch = beta

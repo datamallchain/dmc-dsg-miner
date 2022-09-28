@@ -529,6 +529,7 @@ impl MinerChallenge {
         let resp = self.stack.non_service().get_object(NONGetObjectOutputRequest {
             common: NONOutputRequestCommon {
                 req_path: None,
+                source: None,
                 dec_id: None,
                 level: if target.is_none() {NONAPILevel::NOC} else {NONAPILevel::Router},
                 target,

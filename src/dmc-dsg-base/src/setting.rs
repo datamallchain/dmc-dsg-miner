@@ -93,6 +93,7 @@ impl Setting {
             let resp = self.stack.non_service().get_object(NONGetObjectOutputRequest {
                 common: NONOutputRequestCommon {
                     req_path: None,
+                    source: None,
                     dec_id: None,
                     level: NONAPILevel::NOC,
                     target: None,
@@ -119,17 +120,21 @@ impl Setting {
             (obj_id, obj)
         };
 
-        self.stack.non_service().put_object(NONPutObjectOutputRequest { common: NONOutputRequestCommon {
-            req_path: None,
-            dec_id: None,
-            level: NONAPILevel::NOC,
-            target: None,
-            flags: 0
-        }, object: NONObjectInfo {
-            object_id: obj_id.clone(),
-            object_raw: obj.to_vec()?,
-            object: None
-        } }).await?;
+        self.stack.non_service().put_object(NONPutObjectOutputRequest { 
+            common: NONOutputRequestCommon {
+                req_path: None,
+                source: None,
+                dec_id: None,
+                level: NONAPILevel::NOC,
+                target: None,
+                flags: 0
+            }, object: NONObjectInfo {
+                object_id: obj_id.clone(),
+                object_raw: obj.to_vec()?,
+                object: None
+            }, 
+            access: Some(AccessString::default())
+        }).await?;
 
         let op_env = self.stack.root_state_stub(None, None).create_path_op_env().await?;
         op_env.set_with_path("/setting", &obj_id, None, true).await?;
