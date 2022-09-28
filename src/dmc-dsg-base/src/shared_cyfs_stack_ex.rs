@@ -93,7 +93,6 @@ impl SharedCyfsStackServer {
             };
             self.stack.root_state_meta_stub(Some(self.stack.local_device_id().object_id().to_owned()), None).add_access(item).await?;
 
-
             let filter = format!("dec_id == {}", filter_dec_id);
             self.stack.router_handlers().add_handler(RouterHandlerChain::Handler,
                                                      (self.name.clone() + filter_dec_id.to_string().as_str()).as_str(),
