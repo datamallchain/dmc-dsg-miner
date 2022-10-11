@@ -40,6 +40,7 @@ async fn main() -> Result<()> {
     let config = builder.build().unwrap();
 
     let dec_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), DMCDsgConfig::PRODUCT_NAME);
+    log::info!("----> dec_id: {}", &dec_id);
     let stack = Arc::new(SharedCyfsStack::open_default(Some(dec_id.clone())).await.unwrap());
     stack.wait_online(None).await.unwrap();
 

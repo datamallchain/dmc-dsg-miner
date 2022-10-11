@@ -36,6 +36,7 @@ pub struct SharedCyfsStackServer {
     ep: Mutex<Option<Arc<dyn SharedCyfsStackExEndpoint>>>,
     filter_dec_id: Vec<ObjectId>,
     dec_id: ObjectId,
+    req_path: String
 }
 pub type SharedCyfsStackServerRef = Arc<SharedCyfsStackServer>;
 pub type SharedCyfsStackServerWeakRef = Weak<SharedCyfsStackServer>;
@@ -60,13 +61,14 @@ impl EventListenerAsyncRoutine<RouterHandlerPostObjectRequest, RouterHandlerPost
 }
 
 impl SharedCyfsStackServer {
-    pub fn new(name: String, stack: Arc<SharedCyfsStack>, dec_id: ObjectId, filter_dec_id: Vec<ObjectId>) -> SharedCyfsStackServerRef {
+    pub fn new(name: String, stack: Arc<SharedCyfsStack>, dec_id: ObjectId, filter_dec_id: Vec<ObjectId>, req_path: String) -> SharedCyfsStackServerRef {
         SharedCyfsStackServerRef::new(Self {
             stack,
             name,
             ep: Mutex::new(None),
             filter_dec_id,
-            dec_id
+            dec_id,
+            req_path
         })
     }
 
@@ -85,20 +87,16 @@ impl SharedCyfsStackServer {
                 stackex: SharedCyfsStackServerRef::downgrade(self)
             };
 
-            let path = RequestGlobalStatePath::new(Some(filter_dec_id.clone()), Some("/dmc/dsg/miner/")).format_string();
-            let access = AccessString::default();
-            let item = GlobalStatePathAccessItem {
-                path: path.clone(),
-                access: GlobalStatePathGroupAccess::Default(access.value()),
-            };
-            self.stack.root_state_meta_stub(Some(self.stack.local_device_id().object_id().to_owned()), None).add_access(item).await?;
+            self.stack.root_state_meta_stub(None, None).add_access(GlobalStatePathAccessItem {
+                path: self.req_path.clone(),
+                access: GlobalStatePathGroupAccess::Default(AccessString::full().value()),
+            }).await?;
 
-            let filter = format!("dec_id == {}", filter_dec_id);
             self.stack.router_handlers().add_handler(RouterHandlerChain::Handler,
                                                      (self.name.clone() + filter_dec_id.to_string().as_str()).as_str(),
                                                      0,
-                                                     Some(filter),
-                                                     Some(path),
+                                                     None,
+                                                     Some(self.req_path.clone()),
                                                      RouterHandlerAction::Default,
                                                      Some(Box::new(listener)))?;
         }

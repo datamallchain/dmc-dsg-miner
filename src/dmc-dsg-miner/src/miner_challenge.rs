@@ -148,8 +148,10 @@ impl MinerChallenge {
 
     pub async fn first_sync_contract(&self, _interface: &DsgMinerInterface, contract_id: &ObjectId, state_id: &ObjectId, challenge: &DsgChallengeObject, owner_id: &ObjectId) -> BuckyResult<()> {
         let contract: DsgContractObject<DMCContractData> = self.get_object(Some(owner_id.clone()), contract_id.clone()).await?;
-        if !self.dmc.check_contract(owner_id, &contract).await? {
-            return Err(BuckyError::new(BuckyErrorCode::InvalidData, "check contract failed"));
+        if cfg!(not(feature = "test_contract_sync")) {
+            if !self.dmc.check_contract(owner_id, &contract).await? {
+                return Err(BuckyError::new(BuckyErrorCode::InvalidData, "check contract failed"));
+            }
         }
         let state: DsgContractStateObject = self.get_object(Some(owner_id.clone()), state_id.clone()).await?;
 
@@ -256,8 +258,22 @@ impl MinerChallenge {
                                     }
 
                                     if cdstat {
-                                        if let Err(e) = dmc.report_merkle_hash(&contract_id).await {
-                                            log::error!("report_merkle_hash err {}", e);
+                                        if cfg!(not(feature = "test_contract_sync")) {
+                                            if let Err(e) = dmc.report_merkle_hash(&contract_id).await {
+                                                log::error!("report_merkle_hash err {}", e);
+                                            } else {
+                                                if let Err(e) = meta_store.update_down_status(&contract_id, SyncStatus::Success).await {
+                                                    error!("change down status err: {:?}", e);
+                                                }
+                                                for chunk_id in &chunk_list {
+                                                    if let Err(e) = meta_store.chunk_ref_add(&contract_id, chunk_id).await {
+                                                        info!("add chunk ref err: {:?}", e);
+                                                    }
+                                                    if let Err(e) = meta_store.chunk_del_list_del(chunk_id).await {
+                                                        info!("add chunk ref err: {:?}", e);
+                                                    }
+                                                }
+                                            }
                                         } else {
                                             if let Err(e) = meta_store.update_down_status(&contract_id, SyncStatus::Success).await {
                                                 error!("change down status err: {:?}", e);
@@ -332,9 +348,10 @@ impl MinerChallenge {
 
         spawn( async move {
             loop {
-
-                if let Err(e) = this.check_contract_state().await {
-                    error!("check out time err: {}", e);
+                if cfg!(not(feature = "test_contract_sync")) {
+                    if let Err(e) = this.check_contract_state().await {
+                        error!("check out time err: {}", e);
+                    }
                 }
 
                 if let Err(e) = meta_store.check_challenge_out_time().await {

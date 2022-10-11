@@ -62,3 +62,6 @@ prost = {version = "0.9"}
 
 [build-dependencies]
 prost-build = {version = "0.9"}
+
+[features]
+test_contract_sync = []
