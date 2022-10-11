@@ -49,9 +49,16 @@ impl App {
         }
 
         let dmc_account = self.get_dmc_account().await?;
-        if !dmc_account.is_empty() {
-            let dmc_account = self.get_dmc_account().await?;
-            let dmc_key = self.get_dmc_key(dmc_account.clone()).await?;
+        if !dmc_account.is_empty() || cfg!(feature = "test_contract_sync") {
+            let dmc_account;
+            let dmc_key;
+            if cfg!(not(feature = "test_contract_sync")) {
+                dmc_account = self.get_dmc_account().await?;
+                dmc_key = self.get_dmc_key(dmc_account.clone()).await?;
+            } else {
+                dmc_account = String::from("testdmcdsg11");
+                dmc_key = String::from("5K5DspRRkx8yfGqUjXJMCwsZrHV78rLH3DkoJK4QaCEA9Bnz8MW");
+            }
             let dmc = DMC::new(
                 self.stack.clone(),
                 self.chunk_meta.clone(),
@@ -60,11 +67,14 @@ impl App {
                 dmc_account.as_str(),
                 dmc_key.clone(),
                 self.get_http_domain().await?)?;
-            if let Err(e) = dmc.report_cyfs_info().await {
-                return if e.code() == BuckyErrorCode::InvalidData {
-                    Err(app_err2!(DMC_DSG_ERROR_REPORT_FAILED, app_msg!("{}", e)))
-                } else {
-                    Err(e)
+
+            if cfg!(not(feature = "test_contract_sync")) {
+                if let Err(e) = dmc.report_cyfs_info().await {
+                    return if e.code() == BuckyErrorCode::InvalidData {
+                        Err(app_err2!(DMC_DSG_ERROR_REPORT_FAILED, app_msg!("{}", e)))
+                    } else {
+                        Err(e)
+                    }
                 }
             }
 
