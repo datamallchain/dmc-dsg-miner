@@ -5,7 +5,7 @@ use cyfs_core::{DecApp, DecAppObj};
 use cyfs_lib::*;
 use dmc_dsg_base::*;
 use dmc_dsg_base::Verifier;
-use crate::{AppRef};
+use crate::{AppRef, get_dec_id};
 use cyfs_dsg_client::*;
 
 
