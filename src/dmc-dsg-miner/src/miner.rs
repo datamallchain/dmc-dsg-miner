@@ -43,6 +43,13 @@ impl DsgMinerInterface {
             proof.id(),
             proof.as_ref().to_vec().unwrap());
         req.common.target = Some(to.object_id().clone());
+        let path = RequestGlobalStatePath {
+            global_state_category: None,
+            global_state_root: None,
+            dec_id: Some(dsg_dec_id()),
+            req_path: Some("/dsg/service/proof/".to_string())
+        };
+        req.common.req_path = Some(path.to_string());
         let resp = self.stack().non_service().post_object(req).await
             .map_err(|err| {
                 log::error!("DsgMiner will request sign for proof failed, proof={}, to={}, err=post object {}", proof.id(), to, err);
