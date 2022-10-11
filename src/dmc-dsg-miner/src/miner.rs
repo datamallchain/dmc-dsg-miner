@@ -173,21 +173,20 @@ impl<D> OodMiner<D>
             }
         }
 
-        let path = RequestGlobalStatePath::new(Some(self.interface().stack().local_device_id().object_id().to_owned()), Some("/dmc/dsg/miner/")).format_string();
-        let access = AccessString::default();
-        let item = GlobalStatePathAccessItem {
-            path: path.clone(),
-            access: GlobalStatePathGroupAccess::Default(access.value()),
-        };
-        self.interface().stack().root_state_meta_stub(Some(self.interface().stack().local_device_id().object_id().to_owned()), None).add_access(item).await?;
+        let req_path = RequestGlobalStatePath::new(Some(dsg_dec_id()), Some("/dmc/dsg/miner/")).format_string();
+        info!("miner req path: {}", &req_path);
 
+        self.interface().stack().root_state_meta_stub(None, None).add_access(GlobalStatePathAccessItem {
+            path: req_path.clone(),
+            access: GlobalStatePathGroupAccess::Default(AccessString::full().value()),
+        }).await?;
 
         let _ = self.interface().stack().router_handlers().add_handler(
             RouterHandlerChain::Handler,
             "OnChallenge",
             0,
-            Some(format!("dec_id == {} && obj_type == {}", cyfs_dsg_client::dsg_dec_id(),  DsgChallengeDesc::obj_type())),
-            Some(path),
+            None,
+            Some(req_path.clone()),
             RouterHandlerAction::Default,
             Some(Box::new(OnChallenge {miner: self.clone()}))
         )?;
