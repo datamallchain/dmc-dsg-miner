@@ -63,12 +63,10 @@ impl DMCDsgService {
         let service_api_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), DMCDsgConfig::PRODUCT_NAME);
         log::info!("device {}, dec {} service api id {}", &ood_id, &dec_id, &service_api_id);
 
-        let req_path = RequestGlobalStatePath::new(Some(dsg_dec_id()), Some("/dmc/dsg/miner/")).format_string();
+        let req_path = RequestGlobalStatePath::new(None, Some("commands")).format_string();
 
-        let stack = SharedCyfsStackServer::new("dmc-dsg-miner-service-".to_string(),
+        let stack = SharedCyfsStackServer::new("dmc-dsg-miner-service".to_string(),
                                                  app.get_stack().clone(),
-                                                 dec_id.clone(),
-                                                 vec![service_api_id.clone()],
                                                  req_path);
         DMCDsgServiceRef::new(Self {
             stack,

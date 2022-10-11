@@ -2,7 +2,7 @@ use std::sync::Arc;
 use async_std::task::JoinHandle;
 use cyfs_base::{BuckyErrorCode, BuckyResult, NamedObject, ObjectDesc, ObjectId, OwnerObjectDesc, RawConvertTo};
 use cyfs_lib::{SharedCyfsStack, UtilGetSystemInfoOutputRequest};
-use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, SharedCyfsStackEx, SimpleSignatureProvider, cyfs_err, SetDMCAccount, DMCPrivateKey};
+use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, SharedCyfsStackEx, SimpleSignatureProvider, cyfs_err, SetDMCAccount, DMCPrivateKey, CyfsPath};
 
 pub struct DmcInfo {
     pub dmc_account: String,
@@ -18,26 +18,28 @@ pub struct App {
     ood_id: ObjectId,
     owner_id: ObjectId,
     dmc_sever: String,
+    req_path: String,
 }
 
 impl App {
     pub async fn new(stack: Arc<SharedCyfsStack>, dec_id: ObjectId, dmc_server: String) -> BuckyResult<Self> {
         let owner_id = stack.local_device().desc().owner().as_ref().unwrap().clone();
         let ood_id = stack.resolve_ood(owner_id.clone()).await?;
+        let cyfs_path = CyfsPath::new(ood_id, dec_id.clone(), "commands");
         Ok(Self {
             stack,
             dec_id,
             ood_id,
             owner_id,
-            dmc_sever: dmc_server.to_string()
+            dmc_sever: dmc_server.to_string(),
+            req_path: cyfs_path.to_path()
         })
     }
 
     pub async fn get_dmc_key(&self, dmc_account: &str) -> BuckyResult<String> {
         let req = JSONObject::new(self.dec_id.clone(), self.owner_id.clone(), JsonProtocol::GetDMCKey as u16, &dmc_account.to_string())?;
         let req_id = req.desc().calculate_id();
-        let signed_obj = self.stack.sign_object(req_id.clone(), req.to_vec()?).await?;
-        let resp: JSONObject = self.stack.put_object_with_resp2(self.ood_id.clone(), req_id, signed_obj).await?;
+        let resp: JSONObject = self.stack.put_object_with_resp2(self.req_path.as_str(), req_id, req.to_vec()?).await?;
         Ok(resp.get()?)
     }
 
@@ -47,8 +49,7 @@ impl App {
             dmc_key: private_key.to_string()
         })?;
         let req_id = req.desc().calculate_id();
-        let signed_obj = self.stack.sign_object(req_id.clone(), req.to_vec()?).await?;
-        let _: JSONObject = self.stack.put_object_with_resp2(self.ood_id.clone(), req_id, signed_obj).await?;
+        let _: JSONObject = self.stack.put_object_with_resp2(self.req_path.as_str(), req_id, req.to_vec()?).await?;
         Ok(())
     }
 

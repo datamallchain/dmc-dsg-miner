@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use std::sync::{Arc, Weak, Mutex};
 use crate::*;
 use async_std::future::Future;
-use cyfs_util::EventListenerAsyncRoutine;
 use crate::ArcWeakHelper;
+use cyfs_util::{EventListenerAsyncRoutine};
 
 pub enum SharedCyfsStackExEndpointResult {
     Pass,
@@ -34,9 +34,7 @@ pub struct SharedCyfsStackServer {
     stack: Arc<SharedCyfsStack>,
     name: String,
     ep: Mutex<Option<Arc<dyn SharedCyfsStackExEndpoint>>>,
-    filter_dec_id: Vec<ObjectId>,
-    dec_id: ObjectId,
-    req_path: String
+    req_path: String,
 }
 pub type SharedCyfsStackServerRef = Arc<SharedCyfsStackServer>;
 pub type SharedCyfsStackServerWeakRef = Weak<SharedCyfsStackServer>;
@@ -61,14 +59,12 @@ impl EventListenerAsyncRoutine<RouterHandlerPostObjectRequest, RouterHandlerPost
 }
 
 impl SharedCyfsStackServer {
-    pub fn new(name: String, stack: Arc<SharedCyfsStack>, dec_id: ObjectId, filter_dec_id: Vec<ObjectId>, req_path: String) -> SharedCyfsStackServerRef {
+    pub fn new(name: String, stack: Arc<SharedCyfsStack>, req_path: String) -> SharedCyfsStackServerRef {
         SharedCyfsStackServerRef::new(Self {
             stack,
             name,
             ep: Mutex::new(None),
-            filter_dec_id,
-            dec_id,
-            req_path
+            req_path,
         })
     }
 
@@ -82,33 +78,29 @@ impl SharedCyfsStackServer {
     }
 
     pub async fn listen(self: &SharedCyfsStackServerRef) -> BuckyResult<()> {
-        for filter_dec_id in &self.filter_dec_id {
-            let listener = OnPutHandle {
-                stackex: SharedCyfsStackServerRef::downgrade(self)
-            };
+        let listener = OnPutHandle {
+            stackex: SharedCyfsStackServerRef::downgrade(self)
+        };
 
-            self.stack.root_state_meta_stub(None, None).add_access(GlobalStatePathAccessItem {
-                path: self.req_path.clone(),
-                access: GlobalStatePathGroupAccess::Default(AccessString::full().value()),
-            }).await?;
+        self.stack.root_state_meta_stub(None, None).add_access(GlobalStatePathAccessItem {
+            path: self.req_path.clone(),
+            access: GlobalStatePathGroupAccess::Default(AccessString::full().value())
+        }).await?;
 
-            self.stack.router_handlers().add_handler(RouterHandlerChain::Handler,
-                                                     (self.name.clone() + filter_dec_id.to_string().as_str()).as_str(),
-                                                     0,
-                                                     None,
-                                                     Some(self.req_path.clone()),
-                                                     RouterHandlerAction::Default,
-                                                     Some(Box::new(listener)))?;
-        }
+        self.stack.router_handlers().add_handler(RouterHandlerChain::Handler,
+                                                 self.name.clone().as_str(),
+                                                 0,
+                                                 None,
+                                                 Some(self.req_path.clone()),
+                                                 RouterHandlerAction::Default,
+                                                 Some(Box::new(listener)))?;
         Ok(())
     }
 
     pub async fn stop(&self) -> BuckyResult<bool> {
-        for filter_dec_id in &self.filter_dec_id {
-            self.stack.router_handlers().remove_handler(RouterHandlerChain::PreRouter,
-                                                        RouterHandlerCategory::PostObject,
-                                                        (self.name.clone() + filter_dec_id.to_string().as_str()).as_str()).await?;
-        }
+        self.stack.router_handlers().remove_handler(RouterHandlerChain::Handler,
+                                                    RouterHandlerCategory::PostObject,
+                                                    self.name.as_str()).await?;
 
         Ok(true)
     }
@@ -128,28 +120,17 @@ impl SharedCyfsStackServer {
                 Ok(ret) => {
                     match ret {
                         SharedCyfsStackExEndpointResult::Accepted((object_id, object_raw)) => {
-                            match self.sign_object(object_id.clone(), object_raw).await {
-                                Ok(object_raw) => {
-                                    Ok(RouterHandlerPostObjectResult {
-                                        action: RouterHandlerAction::Response,
-                                        request: None,
-                                        response: Some(Ok(NONPostObjectInputResponse{
-                                            object: Some(NONObjectInfo {
-                                                object_id,
-                                                object_raw,
-                                                object: None
-                                            })
-                                        })),
+                            Ok(RouterHandlerPostObjectResult {
+                                action: RouterHandlerAction::Response,
+                                request: None,
+                                response: Some(Ok(NONPostObjectInputResponse {
+                                    object: Some(NONObjectInfo {
+                                        object_id,
+                                        object_raw,
+                                        object: None,
                                     })
-                                },
-                                Err(e) => {
-                                    Ok(RouterHandlerPostObjectResult {
-                                        action: RouterHandlerAction::Response,
-                                        request: None,
-                                        response: Some(Err(e))
-                                    })
-                                }
-                            }
+                                })),
+                            })
                         },
                         SharedCyfsStackExEndpointResult::Pass => {
                             Ok(
@@ -180,24 +161,60 @@ impl SharedCyfsStackServer {
         }
     }
 
-    async fn sign_object(&self, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<Vec<u8>> {
-        let flags = CRYPTO_REQUEST_FLAG_SIGN_BY_DEVICE | CRYPTO_REQUEST_FLAG_SIGN_PUSH_DESC;
-        let resp = self.stack.crypto().sign_object(CryptoSignObjectRequest {
-            common: CryptoOutputRequestCommon {
-                req_path: None,
-                dec_id: Some(self.dec_id.clone()),
-                target: None,
-                flags
-            },
-            flags,
-            object: NONObjectInfo {
-                object_id,
-                object_raw,
-                object: None
-            }
-        }).await?;
+    // pub async fn verify_object(&self, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<bool> {
+    //     let req = NONVerifyBySignRequest {
+    //         target: None,
+    //         object_id,
+    //         object_raw,
+    //         desc_signs: None,
+    //         body_signs: None
+    //     };
+    // }
+}
 
-        Ok(resp.object.unwrap().object_raw)
+pub struct CyfsPath {
+    pub target: ObjectId,
+    pub target_dec_id: ObjectId,
+    pub req_path: String,
+}
+
+impl CyfsPath {
+    pub fn new(target: ObjectId, target_dec_id: ObjectId, req_path: &str) -> Self {
+        Self {
+            target,
+            target_dec_id,
+            req_path: req_path.to_string()
+        }
+    }
+
+    pub fn to_path(&self) -> String {
+        format!("/{}/{}/{}", self.target.to_string(), self.target_dec_id.to_string(), self.req_path)
+    }
+
+    pub fn parse(path: &str) -> BuckyResult<Self> {
+        if !path.starts_with("/") {
+            return Err(cyfs_err!(BuckyErrorCode::InvalidFormat, "parse {} err", path));
+        }
+        let path_ref = &path[1..];
+        let pos = path_ref.find("/");
+        if pos.is_none() {
+            return Err(cyfs_err!(BuckyErrorCode::InvalidFormat, "parse {} err", path));
+        }
+        let target = &path_ref[..pos.unwrap()];
+
+        let path_ref = &path_ref[pos.unwrap() + 1..];
+        let pos = path_ref.find("/");
+        if pos.is_none() {
+            return Err(cyfs_err!(BuckyErrorCode::InvalidFormat, "parse {} err", path));
+        }
+        let target_dec_id = &path_ref[..pos.unwrap()];
+
+        let req_path = path_ref[pos.unwrap() + 1..].to_string();
+        Ok(Self {
+            target: ObjectId::from_base58(target)?,
+            target_dec_id: ObjectId::from_base58(target_dec_id)?,
+            req_path
+        })
     }
 }
 
@@ -265,44 +282,24 @@ impl SharedCyfsStackClient {
         T::clone_from_slice(resp.object.object_raw.as_slice())
     }
 
-    pub async fn put_object(&self, target: ObjectId, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<()> {
-        log::info!("put_object_with_resp target={} object_id={}", target.to_string(), object_id.to_string());
-        let object_raw = self.sign_object(object_id.clone(), object_raw).await?;
+    pub async fn put_object_with_resp(&self, req_path: &str, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<Vec<u8>> {
+        app_call_log!("put_object_with_resp req_path={}", req_path);
+        let cyfs_path = CyfsPath::parse(req_path)?;
+        let path = RequestGlobalStatePath {
+            global_state_category: None,
+            global_state_root: None,
+            dec_id: Some(cyfs_path.target_dec_id),
+            req_path: Some(cyfs_path.req_path)
+        };
 
-        let path = RequestGlobalStatePath::new(self.dec_id().copied(), Some("/dmc/dsg/miner/")).format_string();
-
-        let _ = self.stack.non_service().post_object(NONPostObjectOutputRequest {
-            common: NONOutputRequestCommon {
-                req_path: Some(path),
-                source: None,
-                dec_id: self.dec_id.clone(),
-                level: NONAPILevel::Router,
-                target: Some(target),
-                flags: 0
-            },
-            object: NONObjectInfo {
-                object_id,
-                object_raw,
-                object: None
-            }
-        }).await?;
-
-        Ok(())
-    }
-
-    pub async fn put_object_with_resp(&self, target: ObjectId, object_id: ObjectId, object_raw: Vec<u8>, _timeout: u64) -> BuckyResult<Vec<u8>> {
-        app_call_log!("put_object_with_resp target={} object_id={}", target.to_string(), object_id.to_string());
-        let object_raw = self.sign_object(object_id.clone(), object_raw).await?;
-
-        let path = RequestGlobalStatePath::new(self.dec_id().copied(), Some("/dmc/dsg/miner/")).format_string();
-
+        // let object_raw = self.sign_object(object_id.clone(), object_raw).await?;
         let resp = self.stack.non_service().post_object(NONPostObjectOutputRequest {
             common: NONOutputRequestCommon {
-                req_path: Some(path),
+                req_path: Some(path.to_string()),
                 source: None,
-                dec_id: self.dec_id.clone(),
+                dec_id: None,
                 level: NONAPILevel::Router,
-                target: Some(target),
+                target: Some(cyfs_path.target),
                 flags: 0
             },
             object: NONObjectInfo {
@@ -320,19 +317,23 @@ impl SharedCyfsStackClient {
         }
     }
 
-    pub async fn put_object_with_resp2<T: RawEncode + for <'a> RawDecode<'a>>(&self, target: ObjectId, object_id: ObjectId, object_raw: Vec<u8>, _timeout: u64) -> BuckyResult<T> {
-        app_call_log!("put_object_with_resp2 target={} object_id={}", target.to_string(), object_id.to_string());
-        let object_raw = self.sign_object(object_id.clone(), object_raw).await?;
-
-        let path = RequestGlobalStatePath::new(self.dec_id().copied(), Some("/dmc/dsg/miner/")).format_string();
+    pub async fn put_object_with_resp2<T: RawEncode + for <'a> RawDecode<'a>>(&self, req_path: &str, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<T> {
+        app_call_log!("put_object_with_resp2 req_path={}", req_path);
+        let cyfs_path = CyfsPath::parse(req_path)?;
+        let path = RequestGlobalStatePath {
+            global_state_category: None,
+            global_state_root: None,
+            dec_id: Some(cyfs_path.target_dec_id),
+            req_path: Some(cyfs_path.req_path)
+        };
 
         let resp = self.stack.non_service().post_object(NONPostObjectOutputRequest {
             common: NONOutputRequestCommon {
-                req_path: Some(path),
+                req_path: Some(path.to_string()),
                 source: None,
-                dec_id: self.dec_id.clone(),
+                dec_id: None,
                 level: NONAPILevel::Router,
-                target: Some(target),
+                target: Some(cyfs_path.target),
                 flags: 0
             },
             object: NONObjectInfo {
@@ -354,14 +355,18 @@ impl SharedCyfsStackClient {
 pub type SharedCyfsStackRef = Arc<SharedCyfsStack>;
 
 #[async_trait::async_trait]
-pub trait SharedCyfsStackEx {
+pub trait SharedCyfsStackEx: 'static + Sync + Send {
     async fn sign_object(&self, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<Vec<u8>>;
     async fn sign_object2<T: ObjectType + Sync + Send, O: for <'a> RawDecode<'a>>(&self, obj: &NamedObjectBase<T>) -> BuckyResult<O>
         where <T as cyfs_base::ObjectType>::ContentType: cyfs_base::BodyContent + cyfs_base::RawEncode,
               <T as cyfs_base::ObjectType>::DescType: RawEncodeWithContext<cyfs_base::NamedObjectContext>;
     async fn resolve_ood(&self, object_id: ObjectId) -> BuckyResult<ObjectId>;
-    async fn get_object_from_noc<T: for <'a> RawDecode<'a>>(&self, object_id: ObjectId) -> BuckyResult<T>;
-    async fn put_object_to_noc<T: ObjectType + Sync + Send>(&self, obj: &NamedObjectBase<T>) -> BuckyResult<ObjectId>
+    async fn resolve_ood_list(&self, object_id: ObjectId) -> BuckyResult<Vec<DeviceId>>;
+    async fn get_object_from_local<T: for <'a> RawDecode<'a>>(&self, object_id: ObjectId) -> BuckyResult<T>;
+    async fn put_object_to_local<T: ObjectType + Sync + Send>(&self, obj: &NamedObjectBase<T>) -> BuckyResult<ObjectId>
+        where <T as cyfs_base::ObjectType>::ContentType: cyfs_base::BodyContent + cyfs_base::RawEncode,
+              <T as cyfs_base::ObjectType>::DescType: RawEncodeWithContext<cyfs_base::NamedObjectContext>;
+    async fn pub_object<T: ObjectType + Sync + Send>(&self, obj: &NamedObjectBase<T>) -> BuckyResult<ObjectId>
         where <T as cyfs_base::ObjectType>::ContentType: cyfs_base::BodyContent + cyfs_base::RawEncode,
               <T as cyfs_base::ObjectType>::DescType: RawEncodeWithContext<cyfs_base::NamedObjectContext>;
     async fn get_object<T: for <'a> RawDecode<'a>>(
@@ -371,13 +376,13 @@ pub trait SharedCyfsStackEx {
     ) -> BuckyResult<T>;
     async fn put_object_with_resp(
         &self,
-        target: ObjectId,
+        req_path: &str,
         object_id: ObjectId,
         object_raw: Vec<u8>
     ) -> BuckyResult<Vec<u8>>;
     async fn put_object_with_resp2<T: RawEncode + for <'a> RawDecode<'a>>(
         &self,
-        target: ObjectId,
+        req_path: &str,
         object_id: ObjectId,
         object_raw: Vec<u8>
     ) -> BuckyResult<T>;
@@ -428,29 +433,65 @@ impl SharedCyfsStackEx for SharedCyfsStack {
         Ok(ood_id)
     }
 
-    async fn get_object_from_noc<T: for<'a> RawDecode<'a>>(&self, object_id: ObjectId) -> BuckyResult<T> {
+    async fn resolve_ood_list(&self, object_id: ObjectId) -> BuckyResult<Vec<DeviceId>> {
+        let resp = self.util().resolve_ood(UtilResolveOODRequest {
+            common: UtilOutputRequestCommon {
+                req_path: None,
+                dec_id: None,
+                target: None,
+                flags: 0
+            },
+            object_id,
+            owner_id: None
+        }).await?;
+
+        Ok(resp.device_list)
+    }
+
+    async fn get_object_from_local<T: for<'a> RawDecode<'a>>(&self, object_id: ObjectId) -> BuckyResult<T> {
         self.get_object(None, object_id).await
     }
 
-    async fn put_object_to_noc<T: ObjectType + Sync + Send>(&self, obj: &NamedObjectBase<T>) -> BuckyResult<ObjectId>
+    async fn put_object_to_local<T: ObjectType + Sync + Send>(&self, obj: &NamedObjectBase<T>) -> BuckyResult<ObjectId>
         where <T as cyfs_base::ObjectType>::ContentType: cyfs_base::BodyContent + cyfs_base::RawEncode,
               <T as cyfs_base::ObjectType>::DescType: RawEncodeWithContext<cyfs_base::NamedObjectContext> {
         let object_id = obj.desc().calculate_id();
         let object_raw = obj.to_vec()?;
-        self.non_service().put_object(NONPutObjectOutputRequest { 
-            common: NONOutputRequestCommon {
-                req_path: None,
-                source: None,
-                dec_id: None,
-                level: NONAPILevel::NOC,
-                target: None,
-                flags: 0
-            }, object: NONObjectInfo {
-                object_id: object_id.clone(),
-                object_raw,
-                object: None
-            },
-            access: Some(AccessString::default())
+        self.non_service().put_object(NONPutObjectOutputRequest { common: NONOutputRequestCommon {
+            req_path: None,
+            source: None,
+            dec_id: None,
+            level: NONAPILevel::NOC,
+            target: None,
+            flags: 0
+        }, object: NONObjectInfo {
+            object_id: object_id.clone(),
+            object_raw,
+            object: None
+        },
+            access: None
+        }).await?;
+
+        Ok(object_id)
+    }
+
+    async fn pub_object<T: ObjectType + Sync + Send>(&self, obj: &NamedObjectBase<T>) -> BuckyResult<ObjectId>
+        where <T as ObjectType>::ContentType: BodyContent + RawEncode, <T as ObjectType>::DescType: RawEncodeWithContext<NamedObjectContext> {
+        let object_id = obj.desc().calculate_id();
+        let object_raw = obj.to_vec()?;
+        self.non_service().put_object(NONPutObjectOutputRequest { common: NONOutputRequestCommon {
+            req_path: None,
+            source: None,
+            dec_id: None,
+            level: NONAPILevel::NOC,
+            target: None,
+            flags: 0
+        }, object: NONObjectInfo {
+            object_id: object_id.clone(),
+            object_raw,
+            object: None
+        },
+            access: Some(AccessString::full())
         }).await?;
 
         Ok(object_id)
@@ -473,19 +514,23 @@ impl SharedCyfsStackEx for SharedCyfsStack {
         T::clone_from_slice(resp.object.object_raw.as_slice())
     }
 
-    async fn put_object_with_resp(&self, target: ObjectId, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<Vec<u8>> {
-        app_call_log!("put_object_with_resp target={} object_id={}", target.to_string(), object_id.to_string());
-        let object_raw = self.sign_object(object_id.clone(), object_raw).await?;
-
-        let path = RequestGlobalStatePath::new(self.dec_id().copied(), Some("/dmc/dsg/miner/")).format_string();
-
+    async fn put_object_with_resp(&self, req_path: &str, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<Vec<u8>> {
+        app_call_log!("put_object_with_resp req_path={}", req_path);
+        let cyfs_path = CyfsPath::parse(req_path)?;
+        let path = RequestGlobalStatePath {
+            global_state_category: None,
+            global_state_root: None,
+            dec_id: Some(cyfs_path.target_dec_id),
+            req_path: Some(cyfs_path.req_path)
+        };
+        // let object_raw = self.sign_object(object_id.clone(), object_raw).await?;
         let resp = self.non_service().post_object(NONPostObjectOutputRequest {
             common: NONOutputRequestCommon {
-                req_path: Some(path),
+                req_path: Some(path.to_string()),
                 source: None,
                 dec_id: None,
                 level: NONAPILevel::Router,
-                target: Some(target),
+                target: Some(cyfs_path.target),
                 flags: 0
             },
             object: NONObjectInfo {
@@ -503,19 +548,23 @@ impl SharedCyfsStackEx for SharedCyfsStack {
         }
     }
 
-    async fn put_object_with_resp2<T: RawEncode + for <'a> RawDecode<'a>>(&self, target: ObjectId, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<T> {
-        app_call_log!("put_object_with_resp2 target={} object_id={}", target.to_string(), object_id.to_string());
-        let object_raw = self.sign_object(object_id.clone(), object_raw).await?;
-
-        let path = RequestGlobalStatePath::new(self.dec_id().copied(), Some("/dmc/dsg/miner/")).format_string();
+    async fn put_object_with_resp2<T: RawEncode + for <'a> RawDecode<'a>>(&self, req_path: &str, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<T> {
+        app_call_log!("put_object_with_resp2 req_path={}", req_path);
+        let cyfs_path = CyfsPath::parse(req_path)?;
+        let path = RequestGlobalStatePath {
+            global_state_category: None,
+            global_state_root: None,
+            dec_id: Some(cyfs_path.target_dec_id),
+            req_path: Some(cyfs_path.req_path)
+        };
 
         let resp = self.non_service().post_object(NONPostObjectOutputRequest {
             common: NONOutputRequestCommon {
-                req_path: Some(path),
+                req_path: Some(path.to_string()),
                 source: None,
                 dec_id: None,
                 level: NONAPILevel::Router,
-                target: Some(target),
+                target: Some(cyfs_path.target),
                 flags: 0
             },
             object: NONObjectInfo {
