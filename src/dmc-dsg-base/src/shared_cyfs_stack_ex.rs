@@ -218,27 +218,6 @@ impl CyfsPath {
     }
 }
 
-    async fn sign_object(&self, object_id: ObjectId, object_raw: Vec<u8>) -> BuckyResult<Vec<u8>> {
-        let flags = CRYPTO_REQUEST_FLAG_SIGN_BY_DEVICE | CRYPTO_REQUEST_FLAG_SIGN_PUSH_DESC;
-        let resp = self.stack.crypto().sign_object(CryptoSignObjectRequest {
-            common: CryptoOutputRequestCommon {
-                req_path: None,
-                dec_id: Some(self.dec_id.clone()),
-                target: None,
-                flags
-            },
-            flags,
-            object: NONObjectInfo {
-                object_id,
-                object_raw,
-                object: None
-            }
-        }).await?;
-
-        Ok(resp.object.unwrap().object_raw)
-    }
-}
-
 #[async_trait::async_trait]
 pub trait CyfsClient: Send + Sync + 'static {
     fn local_device(&self) -> Device;
@@ -424,6 +403,7 @@ impl CyfsNOC for SharedCyfsStack {
         let object_raw = obj.to_vec()?;
         self.non_service().put_object(NONPutObjectOutputRequest { common: NONOutputRequestCommon {
             req_path: None,
+            source: None,
             dec_id: None,
             level: NONAPILevel::NOC,
             target: None,
@@ -432,7 +412,9 @@ impl CyfsNOC for SharedCyfsStack {
             object_id: object_id.clone(),
             object_raw,
             object: None
-        } }).await?;
+        },
+            access: None
+        }).await?;
 
         Ok(object_id)
     }

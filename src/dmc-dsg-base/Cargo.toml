@@ -5,12 +5,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
-cyfs-base= "0.6"
-cyfs-lib = "0.6"
-cyfs-chunk-lib = "0.6"
-cyfs-util = "0.6"
-
 log = "=0.4"
 async-std = { version = "*", features = ["attributes"] }
 cyfs-base = {path="../../../CYFS/src/component/cyfs-base"}

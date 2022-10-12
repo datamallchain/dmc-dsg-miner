@@ -423,7 +423,11 @@ impl<CLIENT: CyfsClient,
                 let proof_ref = DsgProofObjectRef::from(&proof);
                 let ood_id = self.client.resolve_ood(owner_id.clone()).await?;
 
-                if let Err(e) = self.client.put_object_with_resp2::<DsgProofObject>(ood_id, proof_ref.id(), proof_ref.as_ref().to_vec()?).await {
+                let cyfs_path = CyfsPath::new(ood_id, dsg_dec_id(), "/dsg/service/proof/");
+                if let Err(e) = self.client.put_object_with_resp2::<DsgProofObject>(
+                    cyfs_path.to_path().as_str(),
+                    proof_ref.id(),
+                    proof_ref.as_ref().to_vec()?).await {
                     error!("contract {} verify proof err: {:?}", contract_id.to_string(), e)
                 } else {
                     info!("contract {} proof success", contract_id.to_string());

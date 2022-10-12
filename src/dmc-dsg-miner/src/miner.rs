@@ -23,11 +23,11 @@ impl OodMiner {
             owner_id,
             miner
         };
-        let _ = miner.listen()?;
+        let _ = miner.listen().await?;
         Ok(miner)
     }
 
-    fn listen(&self) -> BuckyResult<()> {
+    async fn listen(&self) -> BuckyResult<()> {
         struct OnChallenge {
             miner: OodMiner
         }
@@ -41,7 +41,7 @@ impl OodMiner {
                         log::info!("OnChallenge failed, id={}, from={}, err=decode challenge {}", param.request.object.object_id, param.request.common.source, err);
                         err
                     })?;
-                let _ = self.miner.miner.on_challenge(challenge, param.request.common.source.object_id().clone()).await
+                let _ = self.miner.miner.on_challenge(challenge, param.request.common.source.zone.device.as_ref().unwrap().object_id().clone()).await
                     .map_err(|err| {
                         log::info!("OnChallenge failed, id={}, from={}, err=delegate {}", param.request.object.object_id, param.request.common.source, err);
                         err
@@ -59,12 +59,12 @@ impl OodMiner {
         let req_path = RequestGlobalStatePath::new(Some(dsg_dec_id()), Some("/dmc/dsg/miner/")).format_string();
         info!("miner req path: {}", &req_path);
 
-        self.interface().stack().root_state_meta_stub(None, None).add_access(GlobalStatePathAccessItem {
+        self.stack.root_state_meta_stub(None, None).add_access(GlobalStatePathAccessItem {
             path: req_path.clone(),
             access: GlobalStatePathGroupAccess::Default(AccessString::full().value()),
         }).await?;
 
-        let _ = self.interface().stack().router_handlers().add_handler(
+        let _ = self.stack.router_handlers().add_handler(
             RouterHandlerChain::Handler,
             "OnChallenge",
             0,
@@ -112,11 +112,17 @@ impl OodMiner {
             }
         }
 
+        self.stack.root_state_meta_stub(None, None).add_access(GlobalStatePathAccessItem {
+            path: "dmc_dsg_commands".to_string(),
+            access: GlobalStatePathGroupAccess::Default(AccessString::full().value()),
+        }).await?;
+
         let _ = self.stack.router_handlers().add_handler(
             RouterHandlerChain::Handler,
             "OnCommand",
             0,
-            format!("dec_id == {} && obj_type == {}", dsg_dec_id(), JSONDescContent::obj_type()).as_str(),
+            None,
+            Some("dmc_dsg_commands".to_string()),
             RouterHandlerAction::Default,
             Some(Box::new(OnCommand {
                 miner: self.clone()
