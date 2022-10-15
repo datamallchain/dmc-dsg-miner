@@ -1,5 +1,7 @@
+use std::ops::Deref;
 use std::sync::Arc;
-use cyfs_base::{BuckyErrorCode, BuckyResult, HashValue, js_time_to_bucky_time};
+use async_trait::async_trait;
+use cyfs_base::{BuckyErrorCode, BuckyResult, HashValue, js_time_to_bucky_time, ObjectId};
 use serde::{Serialize, Deserialize};
 use crate::*;
 
@@ -461,13 +463,44 @@ pub struct StakeInfo {
     pub total_staked: Pledge
 }
 
-pub struct DMCClient<T: 'static + SignatureProvider> {
+#[async_trait::async_trait]
+pub trait DMCTxSender: 'static + Send + Sync {
+    async fn update_auth(&self, permission: String, parent: String, auth: Authority) -> BuckyResult<TransResult>;
+    async fn delete_auth(&self, permission: String, parent_permission: String) -> BuckyResult<TransResult>;
+    async fn link_auth(&self, code: String, ty: String, permission: String) -> BuckyResult<TransResult>;
+    async fn unlink_auth(&self, code: String, ty: String, permission: String) -> BuckyResult<TransResult>;
+    async fn stake(&self, amount: &str) -> BuckyResult<TransResult>;
+    async fn bill(&self, asset: String, price: f64, memo: String) -> BuckyResult<TransResult>;
+    async fn mint(&self, amount: &str) -> BuckyResult<TransResult>;
+    async fn add_merkle(&self, order_id: &str, merkle_root: HashValue, data_block_count: u64) -> BuckyResult<TransResult>;
+    async fn challenge(
+        &self,
+        order_id: &str,
+        data_id: u64,
+        hash_data: HashValue,
+        nonce: String
+    ) -> BuckyResult<TransResult>;
+    async fn add_challenge_resp(
+        &self,
+        order_id: &str,
+        reply_hash: HashValue
+    ) -> BuckyResult<TransResult>;
+    async fn arbitration(
+        &self,
+        order_id: &str,
+        data: Vec<u8>,
+        cut_merkle: Vec<HashValue>
+    ) -> BuckyResult<TransResult>;
+    async fn report_cyfs_info(&self, info: &CyfsInfo) -> BuckyResult<TransResult>;
+}
+
+pub struct LocalDMCTxSender<T: 'static + SignatureProvider> {
     api: DMCApi<T>,
     account_name: String,
     sign_keys: Vec<String>,
 }
 
-impl<T: 'static + SignatureProvider> DMCClient<T> {
+impl<T: 'static + SignatureProvider> LocalDMCTxSender<T> {
     pub fn new(account_name: &str, server: &str, sign_provider: T) -> Self {
         let rpc = DMCRpc::new(server);
         let sign_keys = sign_provider.get_available_keys().clone();
@@ -477,10 +510,6 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             account_name: account_name.to_string(),
             sign_keys
         }
-    }
-
-    pub fn api(&self) -> &DMCApi<T> {
-        &self.api
     }
 
     async fn send_transaction(&self, trans: Transaction) -> BuckyResult<TransResult> {
@@ -497,8 +526,11 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         }).await?;
         Ok(ret)
     }
+}
 
-    pub async fn update_auth(&self, permission: String, parent: String, auth: Authority) -> BuckyResult<TransResult> {
+#[async_trait::async_trait]
+impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
+    async fn update_auth(&self, permission: String, parent: String, auth: Authority) -> BuckyResult<TransResult> {
         let params = UpdateAuth {
             account: self.account_name.clone(),
             permission,
@@ -513,7 +545,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         self.send_transaction(trans).await
     }
 
-    pub async fn delete_auth(&self, permission: String, parent_permission: String) -> BuckyResult<TransResult> {
+    async fn delete_auth(&self, permission: String, parent_permission: String) -> BuckyResult<TransResult> {
         let params = DeleteAuth {
             account: self.account_name.clone(),
             permission
@@ -526,7 +558,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         self.send_transaction(trans).await
     }
 
-    pub async fn link_auth(&self, code: String, ty: String, permission: String) -> BuckyResult<TransResult> {
+    async fn link_auth(&self, code: String, ty: String, permission: String) -> BuckyResult<TransResult> {
         let params = LinkAuth {
             account: self.account_name.clone(),
             code,
@@ -541,7 +573,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         self.send_transaction(trans).await
     }
 
-    pub async fn unlink_auth(&self, code: String, ty: String, permission: String) -> BuckyResult<TransResult> {
+    async fn unlink_auth(&self, code: String, ty: String, permission: String) -> BuckyResult<TransResult> {
         let params = UnlinkAuth {
             account: self.account_name.clone(),
             code,
@@ -556,7 +588,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         self.send_transaction(trans).await
     }
 
-    pub async fn stake(&self, amount: &str) -> BuckyResult<TransResult> {
+    async fn stake(&self, amount: &str) -> BuckyResult<TransResult> {
         let params = Increase {
             owner: self.account_name.clone(),
             asset: ExtendedAsset {
@@ -586,7 +618,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         Ok(ret)
     }
 
-    pub async fn bill(&self, asset: String, price: f64, memo: String) -> BuckyResult<TransResult> {
+    async fn bill(&self, asset: String, price: f64, memo: String) -> BuckyResult<TransResult> {
         let params = Bill {
             owner: self.account_name.clone(),
             asset: ExtendedAsset {
@@ -618,7 +650,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         Ok(ret)
     }
 
-    pub async fn mint(&self, amount: &str) -> BuckyResult<TransResult> {
+    async fn mint(&self, amount: &str) -> BuckyResult<TransResult> {
         let params = Mint {
             owner: self.account_name.clone(),
             asset: ExtendedAsset {
@@ -627,15 +659,15 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             }
         };
 
-            let trans = TransactionBuilder::new().add_action(
-                "eosio.token",
-                "mint",
-                vec![Authorization {
-                    actor: self.account_name.clone(),
-                    permission: "active".to_string()
-                }],
-                params
-            )?.build();
+        let trans = TransactionBuilder::new().add_action(
+            "eosio.token",
+            "mint",
+            vec![Authorization {
+                actor: self.account_name.clone(),
+                permission: "active".to_string()
+            }],
+            params
+        )?.build();
 
         let ret = self.api.transact(trans, TransactionConfig {
             broadcast: Some(true),
@@ -649,6 +681,131 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             expire_seconds: Some(30)
         }).await?;
         Ok(ret)
+    }
+
+    async fn add_merkle(&self, order_id: &str, merkle_root: HashValue, data_block_count: u64) -> BuckyResult<TransResult> {
+        let params = AddMerkle {
+            sender: self.account_name.clone(),
+            order_id: order_id.parse().map_err(|e| {
+                cyfs_err!(BuckyErrorCode::InvalidData, "parse order {} err{}", order_id, e)
+            })?,
+            merkle_root,
+            data_block_count
+        };
+
+        let trans = TransactionBuilder::new().add_action(
+            "eosio.token",
+            "addmerkle", vec![Authorization {
+                actor: self.account_name.clone(),
+                permission: "light".to_string() }], params)?.build();
+        self.send_transaction(trans).await
+    }
+
+    async fn challenge(
+        &self,
+        order_id: &str,
+        data_id: u64,
+        hash_data: HashValue,
+        nonce: String
+    ) -> BuckyResult<TransResult> {
+        let params = ChallengeReq {
+            sender: self.account_name.clone(),
+            order_id: order_id.parse().map_err(|e| {
+                cyfs_err!(BuckyErrorCode::InvalidData, "parse order {} err{}", order_id, e)
+            })?,
+            data_id,
+            hash_data,
+            nonce
+        };
+        let trans = TransactionBuilder::new().add_action(
+            "eosio.token",
+            "reqchallenge", vec![Authorization {
+                actor: self.account_name.clone(),
+                permission: "light".to_string() }], params)?.build();
+        self.send_transaction(trans).await
+    }
+
+    async fn add_challenge_resp(
+        &self,
+        order_id: &str,
+        reply_hash: HashValue
+    ) -> BuckyResult<TransResult> {
+        let params = ChallengeResp {
+            sender: self.account_name.clone(),
+            order_id: order_id.parse().map_err(|e| {
+                cyfs_err!(BuckyErrorCode::InvalidData, "parse order {} err{}", order_id, e)
+            })?,
+            reply_hash
+        };
+        let trans = TransactionBuilder::new().add_action(
+            "eosio.token",
+            "anschallenge", vec![Authorization {
+                actor: self.account_name.clone(),
+                permission: "light".to_string() }], params)?.build();
+        self.send_transaction(trans).await
+    }
+
+    async fn arbitration(
+        &self,
+        order_id: &str,
+        data: Vec<u8>,
+        cut_merkle: Vec<HashValue>
+    ) -> BuckyResult<TransResult> {
+        let params = Arbitration {
+            sender: self.account_name.clone(),
+            order_id: order_id.parse().map_err(|e| {
+                cyfs_err!(BuckyErrorCode::InvalidData, "parse order {} err{}", order_id, e)
+            })?,
+            data,
+            cut_merkle
+        };
+        let trans = TransactionBuilder::new().add_action(
+            "eosio.token",
+            "arbitration", vec![Authorization {
+                actor: self.account_name.clone(),
+                permission: "light".to_string() }], params)?.build();
+        self.send_transaction(trans).await
+    }
+
+    async fn report_cyfs_info(&self, info: &CyfsInfo) -> BuckyResult<TransResult> {
+        let params = CyfsBind {
+            owner: self.account_name.clone(),
+            address: serde_json::to_string(info).map_err(|e| {
+                cyfs_err!(BuckyErrorCode::Failed, "serde err {}", e)
+            })?
+        };
+
+        let trans = TransactionBuilder::new().add_action(
+            "cyfsaddrinfo",
+            "bind", vec![Authorization {
+                actor: self.account_name.clone(),
+                permission: "light".to_string() }], params)?.build();
+        self.send_transaction(trans).await
+    }
+}
+
+pub struct DMCClient<T: DMCTxSender> {
+    rpc: DMCRpc,
+    account_name: String,
+    sender: T
+}
+
+impl<T: DMCTxSender> Deref for DMCClient<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sender
+    }
+}
+
+impl<T: DMCTxSender> DMCClient<T> {
+    pub fn new(account_name: &str, server: &str, sender: T) -> Self {
+        let rpc = DMCRpc::new(server);
+        Self {
+            rpc,
+            account_name: account_name.to_string(),
+            sender
+        }
     }
 
     pub async fn get_user_orders(&self, limit: Option<i32>) -> BuckyResult<GetTableRowsResult<DMCOrder>> {
@@ -667,7 +824,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             show_payer: None
         };
 
-        self.api.rpc().get_table_rows(&req).await
+        self.rpc.get_table_rows(&req).await
     }
 
 
@@ -687,7 +844,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             show_payer: None
         };
 
-        self.api.rpc().get_table_rows(&req).await
+        self.rpc.get_table_rows(&req).await
     }
 
     pub async fn get_order_by_id(&self, order_id: &str) -> BuckyResult<Option<DMCOrder>> {
@@ -706,7 +863,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             show_payer: None
         };
 
-        let rows: GetTableRowsResult<DMCOrder> = self.api.rpc().get_table_rows(&req).await?;
+        let rows: GetTableRowsResult<DMCOrder> = self.rpc.get_table_rows(&req).await?;
         if rows.rows.len() == 0 {
             Ok(None)
         } else {
@@ -734,90 +891,6 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
         Ok(None)
     }
 
-    pub async fn add_merkle(&self, order_id: &str, merkle_root: HashValue, data_block_count: u64) -> BuckyResult<TransResult> {
-        let params = AddMerkle {
-            sender: self.account_name.clone(),
-            order_id: order_id.parse().map_err(|e| {
-                cyfs_err!(BuckyErrorCode::InvalidData, "parse order {} err{}", order_id, e)
-            })?,
-            merkle_root,
-            data_block_count
-        };
-
-        let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
-            "addmerkle", vec![Authorization {
-                actor: self.account_name.clone(),
-                permission: "light".to_string() }], params)?.build();
-        self.send_transaction(trans).await
-    }
-
-    pub async fn challenge(
-        &self,
-        order_id: &str,
-        data_id: u64,
-        hash_data: HashValue,
-        nonce: String
-    ) -> BuckyResult<TransResult> {
-        let params = ChallengeReq {
-            sender: self.account_name.clone(),
-            order_id: order_id.parse().map_err(|e| {
-                cyfs_err!(BuckyErrorCode::InvalidData, "parse order {} err{}", order_id, e)
-            })?,
-            data_id,
-            hash_data,
-            nonce
-        };
-        let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
-            "reqchallenge", vec![Authorization {
-                actor: self.account_name.clone(),
-                permission: "light".to_string() }], params)?.build();
-        self.send_transaction(trans).await
-    }
-
-    pub async fn add_challenge_resp(
-        &self,
-        order_id: &str,
-        reply_hash: HashValue
-    ) -> BuckyResult<TransResult> {
-        let params = ChallengeResp {
-            sender: self.account_name.clone(),
-            order_id: order_id.parse().map_err(|e| {
-                cyfs_err!(BuckyErrorCode::InvalidData, "parse order {} err{}", order_id, e)
-            })?,
-            reply_hash
-        };
-        let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
-            "anschallenge", vec![Authorization {
-                actor: self.account_name.clone(),
-                permission: "light".to_string() }], params)?.build();
-        self.send_transaction(trans).await
-    }
-
-    pub async fn arbitration(
-        &self,
-        order_id: &str,
-        data: Vec<u8>,
-        cut_merkle: Vec<HashValue>
-    ) -> BuckyResult<TransResult> {
-        let params = Arbitration {
-            sender: self.account_name.clone(),
-            order_id: order_id.parse().map_err(|e| {
-                cyfs_err!(BuckyErrorCode::InvalidData, "parse order {} err{}", order_id, e)
-            })?,
-            data,
-            cut_merkle
-        };
-        let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
-            "arbitration", vec![Authorization {
-                actor: self.account_name.clone(),
-                permission: "light".to_string() }], params)?.build();
-        self.send_transaction(trans).await
-    }
-
     pub async fn get_challenge_info(
         &self,
         order_id: &str,
@@ -838,23 +911,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             show_payer: None
         };
 
-        self.api.rpc().get_table_rows(&req).await
-    }
-
-    pub async fn report_cyfs_info(&self, info: &CyfsInfo) -> BuckyResult<TransResult> {
-        let params = CyfsBind {
-            owner: self.account_name.clone(),
-            address: serde_json::to_string(info).map_err(|e| {
-                cyfs_err!(BuckyErrorCode::Failed, "serde err {}", e)
-            })?
-        };
-
-        let trans = TransactionBuilder::new().add_action(
-            "cyfsaddrinfo",
-            "bind", vec![Authorization {
-                actor: self.account_name.clone(),
-                permission: "light".to_string() }], params)?.build();
-        self.send_transaction(trans).await
+        self.rpc.get_table_rows(&req).await
     }
 
     pub async fn get_cyfs_info(&self, dmc_account: String) -> BuckyResult<CyfsInfo> {
@@ -873,7 +930,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             show_payer: None
         };
 
-        let resp: GetTableRowsResult<CyfsAccount> = self.api.rpc().get_table_rows(&req).await?;
+        let resp: GetTableRowsResult<CyfsAccount> = self.rpc.get_table_rows(&req).await?;
         if resp.rows.len() == 0 {
             Err(cyfs_err!(BuckyErrorCode::NotFound, "can't find {} cyfs info", dmc_account))
         } else {
@@ -899,7 +956,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             show_payer: None
         };
 
-        let mut resp: GetTableRowsResult<PstTransInfo> = self.api.rpc().get_table_rows(&req).await?;
+        let mut resp: GetTableRowsResult<PstTransInfo> = self.rpc.get_table_rows(&req).await?;
         if resp.rows.len() == 0 {
             Err(cyfs_err!(BuckyErrorCode::NotFound, "can't find pst info"))
         } else {
@@ -923,7 +980,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             show_payer: None
         };
 
-        let mut resp: GetTableRowsResult<PstStat> = self.api.rpc().get_table_rows(&req).await?;
+        let mut resp: GetTableRowsResult<PstStat> = self.rpc.get_table_rows(&req).await?;
         if resp.rows.len() == 0 {
             Ok(0)
         } else {
@@ -951,7 +1008,7 @@ impl<T: 'static + SignatureProvider> DMCClient<T> {
             show_payer: None
         };
 
-        let mut resp: GetTableRowsResult<StakeInfo> = self.api.rpc().get_table_rows(&req).await?;
+        let mut resp: GetTableRowsResult<StakeInfo> = self.rpc.get_table_rows(&req).await?;
         if resp.rows.len() == 0 {
             Err(cyfs_err!(BuckyErrorCode::NotFound, "can't find pst info"))
         } else {

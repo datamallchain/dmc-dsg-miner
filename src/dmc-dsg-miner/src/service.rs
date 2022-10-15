@@ -104,33 +104,36 @@ impl DMCDsgService {
     }
 
     async fn on_get_dmc_key(&self, dmc_account: String) -> BuckyResult<Option<JSONObject>> {
-        let ret = self.app.get_dmc_public_key(dmc_account).await?;
-        Ok(Some(JSONObject::new(
-            self.dec_id.clone(),
-            self.owner_id.clone(),
-            JsonProtocol::GetDMCKeyResp as u16,
-            &ret
-        )?))
+        todo!()
+        // let ret = self.app.get_dmc_public_key(dmc_account).await?;
+        // Ok(Some(JSONObject::new(
+        //     self.dec_id.clone(),
+        //     self.owner_id.clone(),
+        //     JsonProtocol::GetDMCKeyResp as u16,
+        //     &ret
+        // )?))
     }
 
     async fn on_set_dmc_account(&self, req: SetDMCAccount) -> BuckyResult<Option<JSONObject>> {
-        self.app.set_dmc_account(req.dmc_account, req.dmc_key).await?;
-        Ok(Some(JSONObject::new(
-            self.dec_id.clone(),
-            self.owner_id.clone(),
-            JsonProtocol::SetDMCAccountResp as u16,
-            &"".to_string()
-        )?))
+        todo!()
+        // self.app.set_dmc_account(req.dmc_account, req.dmc_key).await?;
+        // Ok(Some(JSONObject::new(
+        //     self.dec_id.clone(),
+        //     self.owner_id.clone(),
+        //     JsonProtocol::SetDMCAccountResp as u16,
+        //     &"".to_string()
+        // )?))
     }
 
     async fn on_get_dmc_account(&self) -> BuckyResult<Option<JSONObject>> {
-        let ret = self.app.get_dmc_account().await?;
-        Ok(Some(JSONObject::new(
-            self.dec_id.clone(),
-            self.owner_id.clone(),
-            JsonProtocol::GetDMCAccountResp as u16,
-            &ret
-        )?))
+        todo!()
+        // let ret = self.app.get_dmc_account().await?;
+        // Ok(Some(JSONObject::new(
+        //     self.dec_id.clone(),
+        //     self.owner_id.clone(),
+        //     JsonProtocol::GetDMCAccountResp as u16,
+        //     &ret
+        // )?))
     }
 
     async fn on_set_http_domain(&self, domain: String) -> BuckyResult<Option<JSONObject>> {

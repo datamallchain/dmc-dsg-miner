@@ -5,6 +5,7 @@ use cyfs_base::*;
 use cyfs_lib::*;
 use cyfs_dsg_client::*;
 use super::*;
+use dmc_dsg_base::*;
 
 pub const META_UPDATE_LOCKER: &str = "meta_update_locker";
 
@@ -713,10 +714,6 @@ impl ContractMetaStore for CyfsStackMetaConnection {
         self.chunk_ref_remove(contract_id, chunk_list).await
     }
 
-    async fn chunk_del_list_add(&mut self, chunk_list: &Vec<ChunkId>) -> BuckyResult<()> {
-        self.del_list_create(chunk_list).await
-    }
-
     async fn chunk_del_list_del(&mut self, chunk_list: &Vec<ChunkId>) -> BuckyResult<()> {
         self.del_list_remove(chunk_list).await
     }
@@ -743,6 +740,10 @@ impl ContractMetaStore for CyfsStackMetaConnection {
         let root = merkle.root();
         let data = merkle.get_cache().get_data(0)?;
         Ok((HashValue::from(root), data.to_vec()))
+    }
+
+    async fn get_del_chunk_list(&mut self) -> BuckyResult<Vec<ChunkId>> {
+        Ok(self.del_list().await?.iter().map(|v| v.clone()).collect())
     }
 }
 

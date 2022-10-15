@@ -4,24 +4,20 @@ use anyhow::Result;
 use async_std::{io::BufReader, task::block_on};
 use tide::{Body, Error, Request, StatusCode};
 
-struct StateMiner<CONN: ContractMetaStore, METASTORE: MetaStore<CONN>, CHUNKSTORE: ContractChunkStore> {
-    meta_store: Arc<METASTORE>,
+struct StateMiner<CONN: ContractMetaStore, CHUNKSTORE: ContractChunkStore> {
+    meta_store: Arc<dyn MetaStore<CONN>>,
     raw_data_store: Arc<CHUNKSTORE>,
-    _marker1: std::marker::PhantomData<CONN>,
 }
 
-pub struct CacheHttp<CONN: ContractMetaStore, METASTORE: MetaStore<CONN>, CHUNKSTORE: ContractChunkStore> {
-    _marker1: std::marker::PhantomData<CONN>,
-    _marker2: std::marker::PhantomData<METASTORE>,
-    _marker3: std::marker::PhantomData<CHUNKSTORE>,
+pub struct CacheHttp {
 }
 
-impl<CONN: ContractMetaStore, METASTORE: MetaStore<CONN>, CHUNKSTORE: ContractChunkStore> CacheHttp<CONN, METASTORE, CHUNKSTORE> {
-    pub async fn run(
-        meta_store: Arc<METASTORE>,
+impl CacheHttp {
+    pub async fn run<CONN: ContractMetaStore, CHUNKSTORE: ContractChunkStore>(
+        meta_store: Arc<dyn MetaStore<CONN>>,
         raw_data_store: Arc<CHUNKSTORE>) -> Result<()> {
 
-        let mut app = tide::with_state(Arc::new(StateMiner{meta_store, raw_data_store, _marker1: Default::default() }));
+        let mut app = tide::with_state(Arc::new(StateMiner{meta_store, raw_data_store }));
         app.at("/slice/:start/:end/*").get(Self::get_slice);
         app.at("/*").get(Self::get_file);
         app.listen("0.0.0.0:32855").await?;
@@ -29,7 +25,7 @@ impl<CONN: ContractMetaStore, METASTORE: MetaStore<CONN>, CHUNKSTORE: ContractCh
         Ok(())
     }
 
-    async fn get_file(req: Request<Arc<StateMiner<CONN, METASTORE, CHUNKSTORE>>>) -> tide::Result<Body> {
+    async fn get_file<CONN: ContractMetaStore, CHUNKSTORE: ContractChunkStore>(req: Request<Arc<StateMiner<CONN, CHUNKSTORE>>>) -> tide::Result<Body> {
         let url = req.url();
         let url_path = url.path();
 
@@ -43,7 +39,7 @@ impl<CONN: ContractMetaStore, METASTORE: MetaStore<CONN>, CHUNKSTORE: ContractCh
         }
 
         let list = chunks_list.iter().map(|chunk_id| {
-            block_on(state.raw_data_store.get_chunk_reader(chunk_id.clone())).unwrap()
+            block_on(state.raw_data_store.get_chunk_reader(chunk_id)).unwrap()
         }).collect::<Vec<_>>();
 
         let merge_reader = ReaderTool::merge(list).await;
@@ -51,7 +47,7 @@ impl<CONN: ContractMetaStore, METASTORE: MetaStore<CONN>, CHUNKSTORE: ContractCh
         Ok(Body::from_reader(BufReader::new(merge_reader), Some(len)))
     }
 
-    async fn get_slice(req: Request<Arc<StateMiner<CONN, METASTORE, CHUNKSTORE>>>) -> tide::Result<Body> {
+    async fn get_slice<CONN: ContractMetaStore, CHUNKSTORE: ContractChunkStore>(req: Request<Arc<StateMiner<CONN, CHUNKSTORE>>>) -> tide::Result<Body> {
         let index_start: usize = req.param("start")?.parse().unwrap_or(0);
         let index_end: usize = req.param("end")?.parse().unwrap_or(0);
 
@@ -72,7 +68,7 @@ impl<CONN: ContractMetaStore, METASTORE: MetaStore<CONN>, CHUNKSTORE: ContractCh
             }
 
             let list = chunks_list.iter().map(|chunk_id| {
-                block_on(state.raw_data_store.get_chunk_reader(chunk_id.clone())).unwrap()
+                block_on(state.raw_data_store.get_chunk_reader(chunk_id)).unwrap()
             }).collect::<Vec<_>>();
 
             let merge_reader = ReaderTool::merge(list).await;

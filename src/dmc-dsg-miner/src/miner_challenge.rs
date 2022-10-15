@@ -6,31 +6,39 @@ use cyfs_bdt::*;
 use cyfs_dsg_client::*;
 use crate::*;
 use std::convert::{TryFrom, TryInto};
+use std::marker::PhantomData;
 use std::sync::Mutex;
 use cyfs_chunk_lib::CHUNK_SIZE;
 
 pub struct DmcDsgMiner<
     CLIENT: CyfsClient,
     CONN: ContractMetaStore,
-    METASTORE: MetaStore<CONN>,
     CHUNKSTORE: ContractChunkStore,
-    DOWNLOADER: FileDownloader> {
+    DOWNLOADER: FileDownloader,
+    DMCTXSENDER: DMCTxSender> {
     client: Arc<CLIENT>,
-    meta_store: Arc<METASTORE>,
+    meta_store: Arc<dyn MetaStore<CONN>>,
     raw_data_store: Arc<CHUNKSTORE>,
     downloader: DOWNLOADER,
-    dmc: DMCRef<CLIENT, CONN, METASTORE, CHUNKSTORE>,
+    dmc: DMCRef<CLIENT, CONN, CHUNKSTORE, DMCTXSENDER>,
     dec_id: ObjectId,
     syncing_contracts: Mutex<HashSet<ObjectId>>,
     proof_contracts: Mutex<HashSet<ObjectId>>,
+    _p: PhantomData<DMCTXSENDER>,
 }
 
 impl<CLIENT: CyfsClient,
     CONN: ContractMetaStore,
-    METASTORE: MetaStore<CONN>,
     CHUNKSTORE: ContractChunkStore,
-    DOWNLOADER: FileDownloader> DmcDsgMiner<CLIENT, CONN, METASTORE, CHUNKSTORE, DOWNLOADER> {
-    pub fn new(client: Arc<CLIENT>, meta_store: Arc<METASTORE>, raw_data_store: Arc<CHUNKSTORE>, dmc: DMCRef<CLIENT, CONN, METASTORE, CHUNKSTORE>, dec_id: ObjectId, downloader: DOWNLOADER) -> Self {
+    DOWNLOADER: FileDownloader,
+    DMCTXSENDER: DMCTxSender> DmcDsgMiner<CLIENT, CONN, CHUNKSTORE, DOWNLOADER, DMCTXSENDER> {
+    pub fn new(
+        client: Arc<CLIENT>,
+        meta_store: Arc<dyn MetaStore<CONN>>,
+        raw_data_store: Arc<CHUNKSTORE>,
+        dmc: DMCRef<CLIENT, CONN, CHUNKSTORE, DMCTXSENDER>,
+        dec_id: ObjectId,
+        downloader: DOWNLOADER) -> Self {
         Self{
             client,
             meta_store,
@@ -39,7 +47,8 @@ impl<CLIENT: CyfsClient,
             dmc,
             dec_id,
             syncing_contracts: Mutex::new(Default::default()),
-            proof_contracts: Mutex::new(Default::default())
+            proof_contracts: Mutex::new(Default::default()),
+            _p: Default::default()
         }
     }
 
@@ -542,7 +551,7 @@ impl<CHUNKSTORE: ContractChunkStore> ChunkReader for MinerChunkReader<CHUNKSTORE
     }
 
     async fn get(&self, chunk: &ChunkId) -> BuckyResult<Arc<Vec<u8>>> {
-        Ok(Arc::new(self.raw_data_store.get_chunk(chunk.clone()).await?))
+        Ok(Arc::new(self.raw_data_store.get_chunk(chunk).await?.into_vec()))
     }
 }
 

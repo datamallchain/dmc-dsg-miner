@@ -6,17 +6,20 @@ use cyfs_lib::*;
 use cyfs_util::*;
 use cyfs_dsg_client::*;
 use crate::*;
+use dmc_dsg_base::*;
+
+type Miner = DmcDsgMiner<SharedCyfsStack, CyfsStackMetaConnection, NocChunkStore, CyfsStackFileDownloader, RemoteDMCTxSender<SharedCyfsStack>>;
 
 #[derive(Clone)]
 pub struct OodMiner {
     stack: Arc<SharedCyfsStack>,
     owner_id: ObjectId,
-    miner: Arc<DmcDsgMiner<SharedCyfsStack, CyfsStackMetaConnection, CyfsStackMetaStore, NocChunkStore, CyfsStackFileDownloader>>
+    miner: Arc<Miner>
 }
 
 
 impl OodMiner {
-    pub async fn new(stack: Arc<SharedCyfsStack>, miner: Arc<DmcDsgMiner<SharedCyfsStack, CyfsStackMetaConnection, CyfsStackMetaStore, NocChunkStore, CyfsStackFileDownloader>>) -> BuckyResult<Self> {
+    pub async fn new(stack: Arc<SharedCyfsStack>, miner: Arc<Miner>) -> BuckyResult<Self> {
         let owner_id = stack.local_device().desc().owner().as_ref().unwrap().clone();
         let miner = Self {
             stack,

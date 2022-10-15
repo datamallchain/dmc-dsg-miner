@@ -3,6 +3,7 @@ use cyfs_lib::*;
 use crate::*;
 use std::ops::{Range};
 use async_std::{io::{Read, ReadExt, Cursor}, sync::Arc};
+use cyfs_chunk_lib::{Chunk, MemChunk};
 
 pub struct NocChunkStore {
     stack: Arc<SharedCyfsStack>
@@ -68,37 +69,40 @@ impl NocChunkStore {
 
 #[async_trait::async_trait]
 impl ContractChunkStore for NocChunkStore {
-    async fn save_chunk(&self, chunk_id: ChunkId, buf: Vec<u8>) -> BuckyResult<()> {
-        let _rsp = self.stack.ndn_service().put_data(NDNPutDataOutputRequest {
-            common: NDNOutputRequestCommon{
-                req_path: None,
-                dec_id: None,
-                level: NDNAPILevel::NDC,
-                target: None,
-                referer_object: vec![],
-                flags: 0,
-            },
-            object_id: chunk_id.object_id(),
-            length: buf.len() as u64,
-            data: Box::new(Cursor::new(buf)) }).await?;
+    async fn save_chunk(&self, chunk_id: &ChunkId, buf: &[u8]) -> BuckyResult<()> {
+        unsafe {
+            let buf: &'static [u8] = std::mem::transmute(buf);
+            let _rsp = self.stack.ndn_service().put_data(NDNPutDataOutputRequest {
+                common: NDNOutputRequestCommon{
+                    req_path: None,
+                    dec_id: None,
+                    level: NDNAPILevel::NDC,
+                    target: None,
+                    referer_object: vec![],
+                    flags: 0,
+                },
+                object_id: chunk_id.object_id(),
+                length: buf.len() as u64,
+                data: Box::new(Cursor::new(buf)) }).await?;
 
-        Ok(())
+            Ok(())
+        }
     }
 
-    async fn get_chunk(&self, chunk_id: ChunkId) -> BuckyResult<Vec<u8>> {
+    async fn get_chunk(&self, chunk_id: &ChunkId) -> BuckyResult<Box<dyn Chunk>> {
         let mut buf = vec![];
         let mut reader = self.get_noc_chunk(chunk_id.object_id(), None).await?;
         reader.read_to_end(&mut buf).await?;
 
-        Ok(buf)
+        Ok(Box::new(MemChunk::from(buf)))
     }
 
-    async fn get_chunk_reader(&self, chunk_id: ChunkId) -> BuckyResult<Box<dyn Unpin + Read + Send + Sync>> {
+    async fn get_chunk_reader(&self, chunk_id: &ChunkId) -> BuckyResult<Box<dyn Unpin + Read + Send + Sync>> {
         let reader = self.get_noc_chunk(chunk_id.object_id(), None).await?;
         return Ok(reader);
     }
 
-    async fn get_chunk_by_range(&self, chunk_id: ChunkId, range: Range<u64>) -> BuckyResult<Vec<u8>> {
+    async fn get_chunk_by_range(&self, chunk_id: &ChunkId, range: Range<u64>) -> BuckyResult<Vec<u8>> {
         let mut buf = vec![];
 
         let mut reader = self.get_noc_chunk(chunk_id.object_id(), Some(range)).await?;
@@ -107,69 +111,8 @@ impl ContractChunkStore for NocChunkStore {
         Ok(buf)
     }
 
-    async fn get_contract_data(&self, chunk_list: Vec<ChunkId>, range: Range<u64>, chunk_size: u32) -> BuckyResult<Vec<u8>> {
-        let start = range.start / chunk_size as u64;
-        let mut end = range.end / chunk_size as u64 + 1;
-        if end > chunk_list.len() as u64{
-            end = chunk_list.len() as u64;
-        }
-        let mut read_len = range.end - range.start;
-        let mut data = Vec::with_capacity(read_len as usize);
-
-        let mut cpos = range.start % chunk_size as u64;
-        for idx in start..end {
-            let chunk_id = chunk_list[idx as usize].clone();
-            let csize = chunk_id.len() as u64;
-            if csize == chunk_size as u64 {
-                if csize - cpos > read_len {
-                    let mut buf = self.get_chunk_by_range(chunk_id, cpos..cpos+read_len).await?;
-                    read_len -= buf.len() as u64;
-                    cpos = 0;
-                    data.append(&mut buf);
-                } else {
-                    let mut buf = self.get_chunk_by_range(chunk_id, cpos..csize).await?;
-                    read_len -= buf.len() as u64;
-                    cpos = 0;
-                    data.append(&mut buf);
-                }
-            } else if csize < chunk_size as u64 {
-                if csize - cpos > read_len {
-                    let mut buf = self.get_chunk_by_range(chunk_id, cpos..cpos+read_len).await?;
-                    read_len -= buf.len() as u64;
-                    cpos += 0;
-                    data.append(&mut buf);
-                } else {
-                    let mut buf = self.get_chunk_by_range(chunk_id, cpos..csize).await?;
-                    read_len -= buf.len() as u64;
-                    cpos += buf.len() as u64;
-                    data.append(&mut buf);
-                    if cpos < chunk_size as u64 && read_len > 0 {
-                        let mut padding = if read_len > chunk_size as u64 - cpos {
-                            let mut padding = Vec::<u8>::new();
-                            padding.resize(chunk_size as usize - cpos as usize, 0);
-                            padding
-                        } else {
-                            let mut padding = Vec::<u8>::new();
-                            padding.resize(read_len as usize, 0);
-                            padding
-                        };
-                        read_len -= buf.len() as u64;
-                        cpos += 0;
-                        data.append(&mut padding);
-                    }
-                }
-            } else {
-                let msg = format!("chunk {} len {} big than {}", chunk_id.to_string(), csize, chunk_size);
-                log::error!("{}", msg);
-                return Err(BuckyError::new(BuckyErrorCode::Failed, msg));
-            }
-        }
-
-        Ok(data)
-    }
-
     async fn chunk_exists(&self, chunk_id: &ChunkId) -> bool {
-        if let Ok(_obj) = self.get_chunk(chunk_id.clone()).await {
+        if let Ok(_obj) = self.get_chunk(chunk_id).await {
             return true;
         }
         false

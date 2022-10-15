@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -6,6 +7,7 @@ use cyfs_base::*;
 use cyfs_chunk_lib::{Chunk, CHUNK_SIZE, MemChunk};
 use cyfs_dsg_client::{DsgContractObject, DsgContractObjectRef};
 use crate::*;
+use dmc_dsg_base::*;
 
 #[derive(ProtobufEncode, ProtobufDecode, Clone, ProtobufTransform, Debug)]
 #[cyfs_protobuf_type(crate::protos::DmcContractData)]
@@ -30,34 +32,33 @@ pub enum ChallengeState {
 pub struct DMC<
     STACK: CyfsClient,
     CONN: ContractMetaStore,
-    METASTORE: MetaStore<CONN>,
-    CHUNKSTORE: ContractChunkStore,> {
-    dmc_client: DMCClient<SimpleSignatureProvider>,
+    CHUNKSTORE: ContractChunkStore,
+    DMCTXSENDER: DMCTxSender> {
+    dmc_client: DMCClient<DMCTXSENDER>,
     stack: Arc<STACK>,
     http_domain: String,
-    contract_store: Arc<METASTORE>,
+    contract_store: Arc<dyn MetaStore<CONN>>,
     raw_data_store: Arc<CHUNKSTORE>,
     challenge_state: Mutex<HashMap<String, ChallengeState>>,
-    _marker: std::marker::PhantomData<CONN>,
+    _marker: PhantomData<CONN>,
 }
-pub type DMCRef<STACK, CONN, METASTORE, CHUNKSTORE> = Arc<DMC<STACK, CONN, METASTORE, CHUNKSTORE>>;
+pub type DMCRef<STACK, CONN, CHUNKSTORE, DMCTXSENDER> = Arc<DMC<STACK, CONN, CHUNKSTORE, DMCTXSENDER>>;
 
 impl<
     STACK: CyfsClient,
     CONN: ContractMetaStore,
-    METASTORE: MetaStore<CONN>,
-    CHUNKSTORE: ContractChunkStore,> DMC<STACK, CONN, METASTORE, CHUNKSTORE> {
+    CHUNKSTORE: ContractChunkStore,
+    DMCTXSENDER: DMCTxSender> DMC<STACK, CONN, CHUNKSTORE, DMCTXSENDER> {
     pub fn new(
         stack: Arc<STACK>,
-        contract_store: Arc<METASTORE>,
+        contract_store: Arc<dyn MetaStore<CONN>>,
         raw_data_store: Arc<CHUNKSTORE>,
         dmc_server: &str,
         dmc_account: &str,
-        private_key: String,
         http_domain: String,
-    ) -> BuckyResult<DMCRef<STACK, CONN, METASTORE, CHUNKSTORE>> {
-        let sign_provider = SimpleSignatureProvider::new(vec![private_key])?;
-        let dmc_client = DMCClient::new(dmc_account, dmc_server, sign_provider);
+        dmc_sender: DMCTXSENDER,
+    ) -> BuckyResult<DMCRef<STACK, CONN, CHUNKSTORE, DMCTXSENDER>> {
+        let dmc_client = DMCClient::new(dmc_account, dmc_server, dmc_sender);
         let dmc = DMCRef::new(Self {
             dmc_client,
             stack,
@@ -65,7 +66,7 @@ impl<
             contract_store,
             raw_data_store,
             challenge_state: Mutex::new(Default::default()),
-            _marker: Default::default()
+            _marker: Default::default(),
         });
 
         let tmp_dmc = dmc.clone();
@@ -139,7 +140,7 @@ impl<
                     } else if state.unwrap() == ChallengeState::RespChallenge {
                         let chunk_map = if challenge.data_id < meta_max_id {
                             let meta_data = conn.get_contract_meta_data(contract_id).await?.to_vec()?;
-                            let mut chunk_list: HashMap<ChunkId, Box<dyn Chunk>> = HashMap::new();
+                            let mut chunk_list: HashMap<ChunkId, Box<dyn Chunk<Target=[u8]>>> = HashMap::new();
                             let mut meta_ptr = meta_data.as_slice();
                             while meta_ptr.len() > chunk_size as usize {
                                 let chunk = Box::new(MemChunk::from(meta_ptr[..chunk_size as usize].to_vec()));
@@ -173,7 +174,7 @@ impl<
     }
 
     async fn build_merkle_tree<
-        READ: async_std::io::Read + async_std::io::Seek + Send + Unpin>(&self, reader: READ, hash_list: Vec<(ChunkId, HashValue)>, chunk_size: u32) -> BuckyResult<MerkleTree<READ, MinerHashStore<Vec<u8>, CONN, METASTORE>>> {
+        READ: async_std::io::Read + async_std::io::Seek + Send + Unpin>(&self, reader: READ, hash_list: Vec<(ChunkId, HashValue)>, chunk_size: u32) -> BuckyResult<MerkleTree<READ, MinerHashStore<Vec<u8>, CONN>>> {
         let leafs = chunk_size as u64 / DSG_CHUNK_PIECE_SIZE;
         let mut layer = 0;
         let mut count = 1;
@@ -190,7 +191,7 @@ impl<
             layer += 1;
         }
 
-        let hash_store = MinerHashStore::<Vec<u8>, _, _>::new::<MemVecCache>(
+        let hash_store = MinerHashStore::<Vec<u8>, _>::new::<MemVecCache>(
             layer,
             chunk_size,
             hash_list,

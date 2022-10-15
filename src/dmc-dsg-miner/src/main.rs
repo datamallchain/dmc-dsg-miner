@@ -9,6 +9,7 @@ use cyfs_util::get_app_data_dir;
 use cyfs_util::process::ProcessAction;
 use config::builder::DefaultState;
 use config::ConfigBuilder;
+use dmc_dsg_base::*;
 
 #[async_std::main]
 async fn main() -> Result<()> {

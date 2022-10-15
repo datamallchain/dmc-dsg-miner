@@ -40,8 +40,8 @@ impl<CHUNKSTORE: ContractChunkStore> MerkleChunkReader<CHUNKSTORE> {
     }
 
     async fn get_chunk(&self, chunk_id: &ChunkId) -> BuckyResult<Box<dyn Chunk>> {
-        let chunk_data = self.chunk_store.get_chunk(chunk_id.clone()).await?;
-        Ok(Box::new(MemChunk::from(chunk_data)))
+        let chunk = self.chunk_store.get_chunk(chunk_id).await?;
+        Ok(chunk)
     }
 
     async fn get_chunk_by_pos(&mut self, pos: u64) -> BuckyResult<(u64, ChunkId, Box<dyn Chunk>, usize)> {
@@ -323,26 +323,23 @@ impl<'a> async_std::io::Seek for MerkleMemoryChunkReader<'a> {
 
 pub struct MinerHashStore<
     T: Send + Sync + Deref<Target=[u8]> + DerefMut<Target=[u8]>,
-    CONN: ContractMetaStore,
-    METASTORE: MetaStore<CONN>> {
+    CONN: ContractMetaStore> {
     base_layer: u16,
     chunk_padding_len: u32,
     chunks: Vec<(ChunkId, HashValue)>,
     sub_cache: Mutex<HashMap<ChunkId, Arc<HashVecStore<Vec<u8>>>>>,
     hash_store: HashVecStore<T>,
-    chunk_meta_store: Arc<METASTORE>,
-    maker: PhantomData<CONN>,
+    chunk_meta_store: Arc<dyn MetaStore<CONN>>,
 }
 
 impl<
     T: Send + Sync + Deref<Target=[u8]> + DerefMut<Target=[u8]>,
-    CONN: ContractMetaStore,
-    METASTORE: MetaStore<CONN>,> MinerHashStore<T, CONN, METASTORE> {
+    CONN: ContractMetaStore,> MinerHashStore<T, CONN> {
     pub fn new<C: VecCache<T>>(
         base_layer: u16,
         chunk_padding_len: u32,
         chunks: Vec<(ChunkId, HashValue)>,
-        chunk_meta_store: Arc<METASTORE>,
+        chunk_meta_store: Arc<dyn MetaStore<CONN>>,
     ) -> BuckyResult<Self> {
         let leafs = if chunks.len() % 2 == 0 {
             chunks.len() / 2
@@ -356,7 +353,6 @@ impl<
             sub_cache: Mutex::new(Default::default()),
             hash_store: HashVecStore::<T>::new::<C>(leafs as u64)?,
             chunk_meta_store,
-            maker: Default::default()
         })
     }
 }
@@ -364,8 +360,7 @@ impl<
 #[async_trait::async_trait]
 impl <
     T: Send + Sync + Deref<Target=[u8]> + DerefMut<Target=[u8]>,
-    CONN: ContractMetaStore,
-    METASTORE: MetaStore<CONN>> HashStore for MinerHashStore<T, CONN, METASTORE> {
+    CONN: ContractMetaStore> HashStore for MinerHashStore<T, CONN> {
     async fn get_node_list_len(&self, layer_number: u16) -> BuckyResult<u64> {
         if self.base_layer == layer_number {
             Ok(self.chunks.len() as u64)

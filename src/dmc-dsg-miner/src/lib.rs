@@ -23,6 +23,7 @@ mod merkle_chunk_reader;
 mod contract_info;
 mod meta_store;
 mod file_downloader;
+mod remote_dmc_tx_sender;
 
 pub use miner_config::*;
 pub use miner::*;
@@ -35,10 +36,12 @@ pub use merkle::*;
 pub use reader_tool::*;
 pub use dmc::*;
 pub use raw_obj::*;
-pub use dmc_dsg_base::*;
+pub(crate) use dmc_dsg_base::*;
 pub use service::*;
 pub use app::*;
 pub use merkle_chunk_reader::*;
 pub use contract_info::*;
 pub use meta_store::*;
 pub use file_downloader::*;
+pub use remote_dmc_tx_sender::*;
+

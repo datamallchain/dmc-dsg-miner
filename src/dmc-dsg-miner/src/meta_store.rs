@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use async_trait::async_trait;
 use cyfs_base::BuckyResult;
 use dmc_dsg_base::{GuardObject, Locker, MetaConnectionProxy};
@@ -15,3 +16,4 @@ pub trait MetaStore<T: ContractMetaStore>: 'static + Send + Sync {
 
     async fn create_meta_connection(&self) -> BuckyResult<MetaConnectionProxy<T>>;
 }
+pub type MetaStoreRef<T> = Arc<dyn MetaStore<T>>;
