@@ -7,12 +7,12 @@ edition = "2021"
 
 [dependencies]
 
-cyfs-base= "0.6"
-cyfs-lib = "0.6"
-cyfs-chunk-lib = "0.6"
-cyfs-util = "0.6"
-cyfs-debug = "0.6"
-cyfs-core = "0.6"
+cyfs-base= {path="../../../CYFS/src/component/cyfs-base"}
+cyfs-lib = {path="../../../CYFS/src/component/cyfs-lib"}
+cyfs-chunk-lib = {path="../../../CYFS/src/component/cyfs-chunk-lib"}
+cyfs-util = {path="../../../CYFS/src/component/cyfs-util"}
+cyfs-debug = {path="../../../CYFS/src/component/cyfs-debug"}
+cyfs-core = {path="../../../CYFS/src/component/cyfs-core"}
 
 dmc-dsg-base = {path="../dmc-dsg-base"}
 async-std ={ version = "1.8", features = ["std"]}

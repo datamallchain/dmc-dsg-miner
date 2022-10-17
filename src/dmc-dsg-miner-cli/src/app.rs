@@ -1,8 +1,10 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use async_std::task::JoinHandle;
 use cyfs_base::{BuckyErrorCode, BuckyResult, NamedObject, ObjectDesc, ObjectId, OwnerObjectDesc, RawConvertTo};
+use cyfs_core::{DecApp, DecAppObj};
 use cyfs_lib::{SharedCyfsStack, UtilGetSystemInfoOutputRequest};
-use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, CyfsNOC, SimpleSignatureProvider, cyfs_err, SetDMCAccount, DMCPrivateKey};
+use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, CyfsNOC, SimpleSignatureProvider, cyfs_err, SetDMCAccount, DMCPrivateKey, CyfsPath, CyfsClient, DMCDsgConfig, LocalDMCTxSender, DMCTxSender};
 
 pub struct DmcInfo {
     pub dmc_account: String,
@@ -36,30 +38,30 @@ impl App {
         })
     }
 
-    pub async fn get_dmc_key(&self, dmc_account: &str) -> BuckyResult<String> {
-        let req = JSONObject::new(self.dec_id.clone(), self.owner_id.clone(), JsonProtocol::GetDMCKey as u16, &dmc_account.to_string())?;
-        let req_id = req.desc().calculate_id();
-        let resp: JSONObject = self.stack.put_object_with_resp2(self.req_path.as_str(), req_id, req.to_vec()?).await?;
-        Ok(resp.get()?)
-    }
-
     pub async fn set_dmc_account(&self, dmc_account: &str, private_key: &str) -> BuckyResult<()> {
         let req = JSONObject::new(self.dec_id.clone(), self.owner_id.clone(), JsonProtocol::SetDMCAccount as u16, &SetDMCAccount {
             dmc_account: dmc_account.to_string(),
             dmc_key: private_key.to_string()
         })?;
         let req_id = req.desc().calculate_id();
-        let _: JSONObject = self.stack.put_object_with_resp2(self.req_path.as_str(), req_id, req.to_vec()?).await?;
+        let dec_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), "DMC DSG service");
+        let req_path = CyfsPath::new(self.ood_id.clone(), dec_id.clone(), "dmc_account_commands").to_path();
+        let _: JSONObject = self.stack.put_object_with_resp2(req_path.as_str(), req_id, req.to_vec()?).await?;
         Ok(())
     }
 
     pub async fn create_light_auth(&self, dmc_account: &str, private_key: &str) -> BuckyResult<()> {
         let light_private_key = DMCPrivateKey::gen_key();
         let dmc_key = light_private_key.get_public_key().to_legacy_string()?;
-        let dmc_client = DMCClient::new(
+        let tx_sender = LocalDMCTxSender::new(
             dmc_account,
             self.dmc_sever.as_str(),
             SimpleSignatureProvider::new(vec![private_key.to_string()])?);
+        let dmc_client = DMCClient::new(
+            dmc_account,
+            self.dmc_sever.as_str(),
+            tx_sender
+        );
 
         let task: JoinHandle<BuckyResult<()>> = async_std::task::spawn(async move {
             let _ = dmc_client.unlink_auth("cyfsaddrinfo".to_string(), "bind".to_string(), "active".to_string()).await;
@@ -95,10 +97,15 @@ impl App {
     }
 
     pub async fn stake(&self, dmc_account: &str, private_key: &str, dmc_count: &str) -> BuckyResult<()> {
-        let dmc_client = DMCClient::new(
+        let tx_sender = LocalDMCTxSender::new(
             dmc_account,
             self.dmc_sever.as_str(),
             SimpleSignatureProvider::new(vec![private_key.to_string()])?);
+        let dmc_client = DMCClient::new(
+            dmc_account,
+            self.dmc_sever.as_str(),
+            tx_sender
+        );
         dmc_client.stake(dmc_count).await?;
         Ok(())
     }
@@ -110,10 +117,15 @@ impl App {
         let space = resp.info.hdd_disk_avail + resp.info.ssd_disk_avail;
         let mut max_pst = space / (1024 * 1024 * 1024) * 85 / 100;
 
-        let dmc_client = DMCClient::new(
+        let tx_sender = LocalDMCTxSender::new(
             dmc_account,
             self.dmc_sever.as_str(),
             SimpleSignatureProvider::new(vec![private_key.to_string()])?);
+        let dmc_client = DMCClient::new(
+            dmc_account,
+            self.dmc_sever.as_str(),
+            tx_sender
+            );
         let minted_pst = dmc_client.get_pst_amount(dmc_account).await?;
         let stake_info = dmc_client.get_stake_info(dmc_account).await?;
         let pst_info = dmc_client.get_pst_trans_info().await?;
@@ -132,24 +144,36 @@ impl App {
         if minted_pst + input_pst > max_pst {
             return Err(cyfs_err!(BuckyErrorCode::InvalidInput, "maximun mining quantity is {} pst, has minted {}", max_pst, minted_pst));
         }
+        let dec_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), "DMC DSG service");
+        let req_path = CyfsPath::new(self.ood_id.clone(), dec_id.clone(), "dmc_account_commands").to_path();
         dmc_client.mint(pst_count).await?;
         Ok(())
     }
 
     pub async fn bill(&self, dmc_account: &str, private_key: &str, pst_count: &str, price: f64) -> BuckyResult<()> {
-        let dmc_client = DMCClient::new(
+        let tx_sender = LocalDMCTxSender::new(
             dmc_account,
             self.dmc_sever.as_str(),
             SimpleSignatureProvider::new(vec![private_key.to_string()])?);
+        let dmc_client = DMCClient::new(
+            dmc_account,
+            self.dmc_sever.as_str(),
+            tx_sender
+        );
         dmc_client.bill(pst_count.to_string(), price, "".to_string()).await?;
         Ok(())
     }
 
     pub async fn get_info(&self, dmc_account: &str) -> BuckyResult<DmcInfo> {
-        let dmc_client = DMCClient::new(
+        let tx_sender = LocalDMCTxSender::new(
             dmc_account,
             self.dmc_sever.as_str(),
             SimpleSignatureProvider::new(vec![])?);
+        let dmc_client = DMCClient::new(
+            dmc_account,
+            self.dmc_sever.as_str(),
+            tx_sender
+        );
         let minted_pst = dmc_client.get_pst_amount(dmc_account).await?;
         let stake_info = dmc_client.get_stake_info(dmc_account).await?;
         let pst_info = dmc_client.get_pst_trans_info().await?;
