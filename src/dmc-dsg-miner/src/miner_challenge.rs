@@ -118,6 +118,10 @@ impl<CLIENT: CyfsClient,
                 (contract, false)
             }
         };
+        {
+            let contract_ref = DsgContractObjectRef::from(&contract);
+            log::info!("recv contract {}", contract_ref)
+        }
         if !self.dmc.check_contract(owner_id, &contract).await? {
             return Err(BuckyError::new(BuckyErrorCode::InvalidData, "check contract failed"));
         }
@@ -351,7 +355,6 @@ impl<CLIENT: CyfsClient,
                             contract_info.contract_status = ContractStatus::ContractOutTime;
                             let chunk_list = conn.get_chunk_list(contract_id).await?;
                             conn.chunk_ref_del(contract_id, &chunk_list).await?;
-                            conn.chunk_del_list_del(&chunk_list).await?;
                             conn.contract_set_remove(&vec![contract_id.clone()]).await?;
                         } else {
                             contract_info.latest_check_time += 7*24*3600*1000000;
@@ -389,7 +392,7 @@ impl<CLIENT: CyfsClient,
         if let Ok(challenge) = conn.get_challenge(&contract_id).await {
             let challenge_ref = DsgChallengeObjectRef::from(&challenge);
             if challenge_ref.expire_at() < bucky_time_now() {
-                conn.contract_sync_set_remove(&vec![contract_id.clone()]).await?;
+                conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
                 conn.commit().await?;
                 return Ok(());
             }
@@ -404,7 +407,7 @@ impl<CLIENT: CyfsClient,
                 ChallengeType::State => {
                     let state = conn.get_state(challenge_ref.contract_state().clone()).await?;
                     if state.is_none() {
-                        conn.contract_sync_set_remove(&vec![contract_id.clone()]).await?;
+                        conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
                         conn.commit().await?;
                         return Ok(());
                     }
@@ -442,7 +445,8 @@ impl<CLIENT: CyfsClient,
                     info!("contract {} proof success", contract_id.to_string());
                     let mut conn = self.meta_store.create_meta_connection_named_locked(Self::get_contract_lock_name(&contract_id)).await?;
                     conn.begin().await?;
-                    conn.contract_sync_set_remove(&vec![contract_id.clone()]).await?;
+                    conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
+                    conn.contract_set_add(&vec![contract_id.clone()]).await?;
                     let mut contract_info = conn.get_contract_info(&contract_id).await?;
                     if contract_info.contract_status == ContractStatus::Success {
                         contract_info.contract_status = ContractStatus::Proof;

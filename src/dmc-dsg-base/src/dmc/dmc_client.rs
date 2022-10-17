@@ -382,7 +382,7 @@ pub enum DMCOrderState {
 pub struct DMCChallengeInfo {
     pub order_id: String,
     pub pre_merkle_root: String,
-    pub pre_merkle_block_count: u64,
+    pub pre_data_block_count: u64,
     pub merkle_root: String,
     pub data_block_count: u64,
     pub merkle_submitter: String,

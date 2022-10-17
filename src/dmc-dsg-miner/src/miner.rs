@@ -59,11 +59,8 @@ impl OodMiner {
             }
         }
 
-        let req_path = RequestGlobalStatePath::new(Some(dsg_dec_id()), Some("/dmc/dsg/miner/")).format_string();
-        info!("miner req path: {}", &req_path);
-
         self.stack.root_state_meta_stub(None, None).add_access(GlobalStatePathAccessItem {
-            path: req_path.clone(),
+            path: "/dmc/dsg/miner/".to_string(),
             access: GlobalStatePathGroupAccess::Default(AccessString::full().value()),
         }).await?;
 
@@ -72,7 +69,7 @@ impl OodMiner {
             "OnChallenge",
             0,
             None,
-            Some(req_path.clone()),
+            Some("/dmc/dsg/miner/".to_string()),
             RouterHandlerAction::Default,
             Some(Box::new(OnChallenge {miner: self.clone()}))
         )?;

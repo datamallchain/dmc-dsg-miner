@@ -250,9 +250,9 @@ impl<
                 return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "order {} state is {}, expect ChallengePrepare", dmc_data.order_id.as_str(), info.state));
             }
 
-            if info.pre_merkle_root != merkle_root.to_string() || info.pre_merkle_block_count != piece_count {
+            if info.pre_merkle_root != merkle_root.to_string() || info.pre_data_block_count != piece_count {
                 return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "order {} merkle root is unmatched.user committed {} {}, miner {} {}",
-                dmc_data.order_id.as_str(), info.pre_merkle_root, info.pre_merkle_block_count, merkle_root.to_string(), piece_count));
+                dmc_data.order_id.as_str(), info.pre_merkle_root, info.pre_data_block_count, merkle_root.to_string(), piece_count));
             }
 
             self.dmc_client.add_merkle(dmc_data.order_id.as_str(), merkle_root, piece_count).await?;
