@@ -36,6 +36,7 @@ pub struct DMC<
     DMCTXSENDER: DMCTxSender> {
     dmc_client: DMCClient<DMCTXSENDER>,
     stack: Arc<STACK>,
+    dec_id: ObjectId,
     http_domain: String,
     contract_store: Arc<dyn MetaStore<CONN>>,
     raw_data_store: Arc<CHUNKSTORE>,
@@ -51,6 +52,7 @@ impl<
     DMCTXSENDER: DMCTxSender> DMC<STACK, CONN, CHUNKSTORE, DMCTXSENDER> {
     pub fn new(
         stack: Arc<STACK>,
+        dec_id: ObjectId,
         contract_store: Arc<dyn MetaStore<CONN>>,
         raw_data_store: Arc<CHUNKSTORE>,
         dmc_server: &str,
@@ -62,6 +64,7 @@ impl<
         let dmc = DMCRef::new(Self {
             dmc_client,
             stack,
+            dec_id,
             http_domain,
             contract_store,
             raw_data_store,
@@ -90,7 +93,8 @@ impl<
             self.dmc_client.report_cyfs_info(&CyfsInfo {
                 addr,
                 http: if self.http_domain.is_empty() {None} else {Some(self.http_domain.clone())},
-                v: Some(2)
+                v: Some(2),
+                mid: Some(self.dec_id.to_string())
             }).await?;
         }
         Ok(())

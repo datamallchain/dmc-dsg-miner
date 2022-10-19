@@ -60,6 +60,7 @@ impl App {
                 let dmc_sender = RemoteDMCTxSender::new(self.stack.clone(), self.dmc_dsg_dec_id.clone());
                 let dmc = DMC::new(
                     self.stack.clone(),
+                    self.dec_id.clone(),
                     self.chunk_meta.clone(),
                     self.raw_data_store.clone(),
                     self.dmc_server.as_str(),
