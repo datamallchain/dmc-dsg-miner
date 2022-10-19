@@ -20,21 +20,18 @@ pub struct App {
     ood_id: ObjectId,
     owner_id: ObjectId,
     dmc_sever: String,
-    req_path: String,
 }
 
 impl App {
     pub async fn new(stack: Arc<SharedCyfsStack>, dec_id: ObjectId, dmc_server: String) -> BuckyResult<Self> {
         let owner_id = stack.local_device().desc().owner().as_ref().unwrap().clone();
         let ood_id = stack.resolve_ood(owner_id.clone()).await?;
-        let cyfs_path = CyfsPath::new(ood_id, dec_id.clone(), "commands");
         Ok(Self {
             stack,
             dec_id,
             ood_id,
             owner_id,
             dmc_sever: dmc_server.to_string(),
-            req_path: cyfs_path.to_path()
         })
     }
 

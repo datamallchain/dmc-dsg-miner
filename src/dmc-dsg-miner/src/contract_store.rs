@@ -82,7 +82,7 @@ pub trait ContractMetaStore: Send + Sync + MetaConnection + 'static {
         let cur_state = cur_state.unwrap();
         let mut state_list = vec![cur_state];
         loop {
-            let mut cur_state_ref = DsgContractStateObjectRef::from(state_list.get(state_list.len() - 1).unwrap());
+            let cur_state_ref = DsgContractStateObjectRef::from(state_list.get(state_list.len() - 1).unwrap());
             if let DsgContractState::DataSourceChanged(change) = cur_state_ref.state() {
                 if change.prev_change.is_none() {
                     break;

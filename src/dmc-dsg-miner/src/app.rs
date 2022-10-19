@@ -4,7 +4,7 @@ use std::time::Duration;
 use cyfs_base::*;
 use cyfs_core::{DecApp, DecAppObj};
 use cyfs_lib::SharedCyfsStack;
-use dmc_dsg_base::{app_err, DMCPrivateKey, Setting, SettingRef, DMC_DSG_ERROR_REPORT_FAILED, cyfs_err, SimpleSignatureProvider, DMCDsgConfig, CyfsPath, JSONObject, DSGJSON, CyfsClient};
+use dmc_dsg_base::{Setting, SettingRef, DMCDsgConfig, CyfsPath, JSONObject, DSGJSON, CyfsClient};
 use crate::{CyfsStackFileDownloader, CyfsStackMetaStore, DMC, DmcDsgMiner, NocChunkStore, OodMiner, RemoteDMCTxSender, RemoteProtocol};
 
 pub struct App {
@@ -16,7 +16,6 @@ pub struct App {
     dmc_server: String,
     dec_id: ObjectId,
     dmc_dsg_dec_id: ObjectId,
-    dmc_account: Option<String>,
 }
 pub type AppRef = Arc<App>;
 
@@ -41,7 +40,6 @@ impl App {
             dmc_server,
             dec_id,
             dmc_dsg_dec_id,
-            dmc_account: None
         }))
     }
 
@@ -75,7 +73,6 @@ impl App {
                     self.chunk_meta.clone(),
                     self.raw_data_store.clone(),
                     dmc.clone(),
-                    self.dec_id.clone(),
                     CyfsStackFileDownloader::new(self.stack.clone(), self.dec_id.clone())));
                 miner.start_chunk_sync().await?;
                 miner.start_proof_resp().await;

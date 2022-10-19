@@ -6,7 +6,6 @@ use cyfs_lib::*;
 use dmc_dsg_base::*;
 use dmc_dsg_base::Verifier;
 use crate::{AppRef};
-use cyfs_dsg_client::*;
 
 
 struct DMCDsgServiceEndPoint {
@@ -50,18 +49,18 @@ impl SharedCyfsStackExEndpoint for DMCDsgServiceEndPoint {
 
 pub struct DMCDsgService {
     stack: SharedCyfsStackServerRef,
-    dec_id: ObjectId,
+    _dec_id: ObjectId,
     app: AppRef,
-    owner_id: ObjectId,
+    _owner_id: ObjectId,
 }
 pub type DMCDsgServiceRef = Arc<DMCDsgService>;
 
 impl DMCDsgService {
-    pub fn new(app: AppRef, dec_id: ObjectId) -> DMCDsgServiceRef {
+    pub fn new(app: AppRef, _dec_id: ObjectId) -> DMCDsgServiceRef {
         let ood_id = app.get_stack().local_device_id().object_id().clone();
-        let owner_id = app.get_stack().local_device().desc().owner().as_ref().unwrap().clone();
+        let _owner_id = app.get_stack().local_device().desc().owner().as_ref().unwrap().clone();
         let service_api_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), DMCDsgConfig::PRODUCT_NAME);
-        log::info!("device {}, dec {} service api id {}", &ood_id, &dec_id, &service_api_id);
+        log::info!("device {}, dec {} service api id {}", &ood_id, &_dec_id, &service_api_id);
 
         let req_path = RequestGlobalStatePath::new(None, Some("commands")).format_string();
 
@@ -70,9 +69,9 @@ impl DMCDsgService {
                                                  req_path);
         DMCDsgServiceRef::new(Self {
             stack,
-            dec_id,
+            _dec_id,
             app,
-            owner_id,
+            _owner_id,
         })
     }
 
@@ -90,59 +89,56 @@ impl DMCDsgService {
         let req_type = req.get_json_obj_type();
         log::info!("recv json req {}", req_type);
 
-        if req_type == JsonProtocol::GetDMCKey as u16 {
-            self.on_get_dmc_key(req.get()?).await
-        } else if req_type == JsonProtocol::GetDMCAccount as u16 {
-            self.on_get_dmc_account().await
-        } else if req_type == JsonProtocol::SetDMCAccount as u16 {
-            self.on_set_dmc_account(req.get()?).await
-        } else if req_type == JsonProtocol::SetHttpDomain as u16 {
-            self.on_set_http_domain(req.get()?).await
-        } else {
+        // if req_type == JsonProtocol::GetDMCKey as u16 {
+        //     self.on_get_dmc_key(req.get()?).await
+        // } else if req_type == JsonProtocol::GetDMCAccount as u16 {
+        //     self.on_get_dmc_account().await
+        // } else if req_type == JsonProtocol::SetDMCAccount as u16 {
+        //     self.on_set_dmc_account(req.get()?).await
+        // } else if req_type == JsonProtocol::SetHttpDomain as u16 {
+        //     self.on_set_http_domain(req.get()?).await
+        // } else {
             Err(cyfs_err!(BuckyErrorCode::NotSupport, "req_type {}", req_type))
-        }
+        // }
     }
 
-    async fn on_get_dmc_key(&self, dmc_account: String) -> BuckyResult<Option<JSONObject>> {
-        todo!()
-        // let ret = self.app.get_dmc_public_key(dmc_account).await?;
-        // Ok(Some(JSONObject::new(
-        //     self.dec_id.clone(),
-        //     self.owner_id.clone(),
-        //     JsonProtocol::GetDMCKeyResp as u16,
-        //     &ret
-        // )?))
-    }
-
-    async fn on_set_dmc_account(&self, req: SetDMCAccount) -> BuckyResult<Option<JSONObject>> {
-        todo!()
-        // self.app.set_dmc_account(req.dmc_account, req.dmc_key).await?;
-        // Ok(Some(JSONObject::new(
-        //     self.dec_id.clone(),
-        //     self.owner_id.clone(),
-        //     JsonProtocol::SetDMCAccountResp as u16,
-        //     &"".to_string()
-        // )?))
-    }
-
-    async fn on_get_dmc_account(&self) -> BuckyResult<Option<JSONObject>> {
-        todo!()
-        // let ret = self.app.get_dmc_account().await?;
-        // Ok(Some(JSONObject::new(
-        //     self.dec_id.clone(),
-        //     self.owner_id.clone(),
-        //     JsonProtocol::GetDMCAccountResp as u16,
-        //     &ret
-        // )?))
-    }
-
-    async fn on_set_http_domain(&self, domain: String) -> BuckyResult<Option<JSONObject>> {
-        self.app.set_http_domain(domain).await?;
-        Ok(Some(JSONObject::new(
-            self.dec_id.clone(),
-            self.owner_id.clone(),
-            JsonProtocol::SetHttpDomainResp as u16,
-            &"".to_string()
-        )?))
-    }
+    // async fn on_get_dmc_key(&self, dmc_account: String) -> BuckyResult<Option<JSONObject>> {
+    //     let ret = self.app.get_dmc_public_key(dmc_account).await?;
+    //     Ok(Some(JSONObject::new(
+    //         self.dec_id.clone(),
+    //         self.owner_id.clone(),
+    //         JsonProtocol::GetDMCKeyResp as u16,
+    //         &ret
+    //     )?))
+    // }
+    //
+    // async fn on_set_dmc_account(&self, req: SetDMCAccount) -> BuckyResult<Option<JSONObject>> {
+    //     self.app.set_dmc_account(req.dmc_account, req.dmc_key).await?;
+    //     Ok(Some(JSONObject::new(
+    //         self.dec_id.clone(),
+    //         self.owner_id.clone(),
+    //         JsonProtocol::SetDMCAccountResp as u16,
+    //         &"".to_string()
+    //     )?))
+    // }
+    //
+    // async fn on_get_dmc_account(&self) -> BuckyResult<Option<JSONObject>> {
+    //     let ret = self.app.get_dmc_account().await?;
+    //     Ok(Some(JSONObject::new(
+    //         self.dec_id.clone(),
+    //         self.owner_id.clone(),
+    //         JsonProtocol::GetDMCAccountResp as u16,
+    //         &ret
+    //     )?))
+    // }
+    //
+    // async fn on_set_http_domain(&self, domain: String) -> BuckyResult<Option<JSONObject>> {
+    //     self.app.set_http_domain(domain).await?;
+    //     Ok(Some(JSONObject::new(
+    //         self.dec_id.clone(),
+    //         self.owner_id.clone(),
+    //         JsonProtocol::SetHttpDomainResp as u16,
+    //         &"".to_string()
+    //     )?))
+    // }
 }

@@ -668,7 +668,7 @@ impl ContractMetaStore for CyfsStackMetaConnection {
     }
 
     async fn get_chunks_by_path(&mut self, url_path: String) -> BuckyResult<Vec<ChunkId>> {
-        let mut chunks = vec![];
+        let chunks = vec![];
         if let Some(state_id) = self.get_state_id_by_path(url_path).await? {
             let state = self.get_state(state_id).await?;
             if state.is_some() {

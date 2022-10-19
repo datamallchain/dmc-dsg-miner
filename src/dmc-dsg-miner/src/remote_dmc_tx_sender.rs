@@ -2,7 +2,6 @@ use std::sync::Arc;
 use cyfs_base::{BuckyResult, HashValue, NamedObject, ObjectDesc, ObjectId, OwnerObjectDesc, RawConvertTo};
 use serde::{Deserialize, Serialize};
 use dmc_dsg_base::{Authority, CyfsClient, CyfsInfo, CyfsPath, DMCTxSender, DSGJSON, JSONObject, TransResult};
-use crate::RemoteProtocol::ChallengeResp;
 
 pub enum RemoteProtocol {
     CreatePushTask,

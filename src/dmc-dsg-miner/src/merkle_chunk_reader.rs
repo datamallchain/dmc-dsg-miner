@@ -2,13 +2,12 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::future::Future;
 use std::io::SeekFrom;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use cyfs_base::*;
-use cyfs_chunk_lib::{Chunk, MemChunk};
+use cyfs_chunk_lib::{Chunk,};
 use crate::{ContractChunkStore, ContractMetaStore, DSG_CHUNK_PIECE_SIZE, HashStore, HashVecStore, MetaStore, VecCache};
 
 pub struct MerkleChunkReader<CHUNKSTORE: ContractChunkStore> {
@@ -400,7 +399,7 @@ impl <
             match self.chunks.get(chunk_index as usize) {
                 Some((chunk_id, _)) => {
                     let need_read = {
-                        let mut sub_cache = self.sub_cache.lock().unwrap();
+                        let sub_cache = self.sub_cache.lock().unwrap();
                         if let None = sub_cache.get(chunk_id) {
                             true
                         } else {
@@ -416,7 +415,7 @@ impl <
                     }
 
                     let sub_store = {
-                        let mut sub_cache = self.sub_cache.lock().unwrap();
+                        let sub_cache = self.sub_cache.lock().unwrap();
                         sub_cache.get(chunk_id).unwrap().clone()
                     };
                     let ret = sub_store.get_node(layer_number, index - start_pos).await?;

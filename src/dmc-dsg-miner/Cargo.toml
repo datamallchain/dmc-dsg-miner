@@ -8,15 +8,15 @@ build = "build.rs"
 
 [dependencies]
 dmc-dsg-base = {path = "../dmc-dsg-base"}
-cyfs-base = {path="../../../CYFS/src/component/cyfs-base"}
-cyfs-dsg-client = {path="../../../CYFS/src/component/cyfs-dsg-client"}
-cyfs-lib = {path="../../../CYFS/src/component/cyfs-lib"}
-cyfs-debug = {path="../../../CYFS/src/component/cyfs-debug"}
-cyfs-core = {path="../../../CYFS/src/component/cyfs-core"}
-cyfs-util=  {path="../../../CYFS/src/component/cyfs-util"}
-cyfs-task-manager = {path="../../../CYFS/src/component/cyfs-task-manager"}
-cyfs-chunk-lib = {path="../../../CYFS/src/component/cyfs-chunk-lib"}
-cyfs-bdt = {path="../../../CYFS/src/component/cyfs-bdt"}
+cyfs-base = "0.6"
+cyfs-dsg-client = "0.6"
+cyfs-lib = "0.6"
+cyfs-debug = "0.6"
+cyfs-core = "0.6"
+cyfs-util= "0.6"
+cyfs-task-manager = "0.6"
+cyfs-chunk-lib = "0.6"
+cyfs-bdt = "0.6"
 async-std = { version = "1.8.0", features = ["attributes"] }
 tide = "0.16.0"
 serde = { version = "1.0", features = ["derive"] }

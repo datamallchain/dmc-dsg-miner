@@ -21,9 +21,7 @@ pub struct DmcDsgMiner<
     raw_data_store: Arc<CHUNKSTORE>,
     downloader: DOWNLOADER,
     dmc: DMCRef<CLIENT, CONN, CHUNKSTORE, DMCTXSENDER>,
-    dec_id: ObjectId,
     syncing_contracts: Mutex<HashSet<ObjectId>>,
-    proof_contracts: Mutex<HashSet<ObjectId>>,
     _p: PhantomData<DMCTXSENDER>,
 }
 
@@ -37,7 +35,6 @@ impl<CLIENT: CyfsClient,
         meta_store: Arc<dyn MetaStore<CONN>>,
         raw_data_store: Arc<CHUNKSTORE>,
         dmc: DMCRef<CLIENT, CONN, CHUNKSTORE, DMCTXSENDER>,
-        dec_id: ObjectId,
         downloader: DOWNLOADER) -> Self {
         Self{
             client,
@@ -45,9 +42,7 @@ impl<CLIENT: CyfsClient,
             raw_data_store,
             downloader,
             dmc,
-            dec_id,
             syncing_contracts: Mutex::new(Default::default()),
-            proof_contracts: Mutex::new(Default::default()),
             _p: Default::default()
         }
     }
@@ -464,8 +459,7 @@ impl<CLIENT: CyfsClient,
                             }
                         }
                         Err(e) => {
-                            //error!("{}", e);
-                            info!("no data wait proof");
+                            log::error!("contract_proof_set err {}", e);
                         }
                     }
                 }

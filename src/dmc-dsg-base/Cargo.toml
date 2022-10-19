@@ -7,10 +7,10 @@ edition = "2021"
 [dependencies]
 log = "=0.4"
 async-std = { version = "*", features = ["attributes"] }
-cyfs-base = {path="../../../CYFS/src/component/cyfs-base"}
-cyfs-lib = {path="../../../CYFS/src/component/cyfs-lib"}
-cyfs-chunk-lib = {path="../../../CYFS/src/component/cyfs-chunk-lib"}
-cyfs-util=  {path="../../../CYFS/src/component/cyfs-util"}
+cyfs-base = "0.6"
+cyfs-lib = "0.6"
+cyfs-chunk-lib = "0.6"
+cyfs-util= "0.6"
 async-trait = "0.1.53"
 lru_time_cache = "0.11.11"
 lazy_static = "1.4.0"
