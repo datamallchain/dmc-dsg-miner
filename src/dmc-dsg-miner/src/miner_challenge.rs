@@ -56,45 +56,13 @@ impl<CLIENT: CyfsClient,
         format!("miner_contract_{}", contract_id)
     }
 
-    pub async fn challenge(&self, contract_id: &ObjectId, state_id: &ObjectId, challenge: &DsgChallengeObject, owner_id: &ObjectId) -> BuckyResult<()> {
+    pub async fn challenge(&self, contract_id: &ObjectId, state_id: &ObjectId, challenge: &DsgChallengeObject, _owner_id: &ObjectId) -> BuckyResult<()> {
         info!("start challenge contract_id {} state_id {}", contract_id.to_string(), state_id.to_string());
-        let mut conn = self.meta_store.create_meta_connection_named_locked(Self::get_contract_lock_name(contract_id)).await?;
-        let contract_info = conn.get_contract_info(contract_id).await?;
-        match contract_info.contract_status {
-            ContractStatus::Proof => {
-                let state: DsgContractStateObject = self.client.get_object(Some(owner_id.clone()), state_id.clone()).await?;
-
-                let state_ref = DsgContractStateObjectRef::from(&state);
-                let mut is_add_chunk = false;
-                match state_ref.state() {
-                    DsgContractState::Initial => {
-                        info!("Initial");
-                    },
-                    DsgContractState::DataSourceSyncing => {info!("DataSourceSyncing");},
-                    DsgContractState::ContractBroken => {info!("ContractBroken");},
-                    DsgContractState::ContractExecuted => {info!("ContractExecuted");},
-                    DsgContractState::Reserve(c) => {
-                        let chunk_list = c.chunks.clone();
-                        info!("DataSourcePrepared {:?}", chunk_list);
-                    },
-                    DsgContractState::DataSourceChanged(c) => {
-                        let chunk_list = c.chunks.clone();
-                        info!("DataSourceChanged {:?}", chunk_list);
-                    },
-                    DsgContractState::DataSourceStored => {
-                        info!("DataSourceStored");
-                    },
-                }
-
-                conn.begin().await?;
-                conn.save_challenge(contract_id, challenge).await?;
-                conn.contract_set_add(&vec![contract_id.clone()]).await?;
-                conn.commit().await?;
-            },
-            _ => {
-                info!("contract {} status err {:?}", contract_id.to_string(), contract_info.contract_status);
-            }
-        }
+        let mut conn = self.meta_store.create_meta_connection().await?;
+        conn.begin().await?;
+        conn.save_challenge(contract_id, challenge).await?;
+        conn.contract_proof_set_add(&vec![contract_id.clone()]).await?;
+        conn.commit().await?;
 
         Ok(())
     }
@@ -125,23 +93,23 @@ impl<CLIENT: CyfsClient,
         if !self.dmc.check_contract(owner_id, &contract).await? {
             return Err(BuckyError::new(BuckyErrorCode::InvalidData, "check contract failed"));
         }
-        let mut conn = self.meta_store.create_meta_connection_named_locked(Self::get_contract_lock_name(contract_id)).await?;
+        let mut conn = self.meta_store.create_meta_connection().await?;
         let state: DsgContractStateObject = self.client.get_object(Some(owner_id.clone()), state_id.clone()).await?;
 
         let state_ref = DsgContractStateObjectRef::from(&state);
         if let DsgContractState::DataSourceChanged(changed) = state_ref.state() {
             let contract_info = if is_saved {
                 let mut contract_info = conn.get_contract_info(contract_id).await?;
-                if contract_info.contract_status != ContractStatus::Proof {
-                    let msg = format!("contract {} status {:?} error.expect Proof", contract_id.to_string(), contract_info.contract_status);
+                if contract_info.contract_status != ContractStatus::Storing {
+                    let msg = format!("contract {} status {:?} error.expect Storing", contract_id.to_string(), contract_info.contract_status);
                     log::info!("{}", msg);
                     return Err(BuckyError::new(BuckyErrorCode::ErrorState, msg));
                 }
-                contract_info.contract_status = ContractStatus::Wait;
+                contract_info.contract_status = ContractStatus::Syncing;
                 contract_info
             } else {
                 ContractInfo {
-                    contract_status: ContractStatus::Wait,
+                    contract_status: ContractStatus::Syncing,
                     latest_check_time: 0,
                     meta_merkle: vec![]
                 }
@@ -151,6 +119,7 @@ impl<CLIENT: CyfsClient,
             if !is_saved {
                 conn.save_contract(&contract).await?;
             }
+            conn.save_state(&state).await?;
             conn.set_contract_info(contract_id, &contract_info).await?;
             conn.save_need_sync_contract_state(contract_id, &state).await?;
             conn.save_challenge(contract_id, challenge).await?;
@@ -203,7 +172,7 @@ impl<CLIENT: CyfsClient,
         app_call_log!("sync contract: {}", &contract_id);
         let mut conn = self.meta_store.create_meta_connection().await?;
         let contract_info = conn.get_contract_info(&contract_id).await?;
-        if contract_info.contract_status != ContractStatus::Wait {
+        if contract_info.contract_status != ContractStatus::Syncing {
             return Ok(());
         }
         let contract = conn.get_contract(&contract_id).await?;
@@ -237,6 +206,8 @@ impl<CLIENT: CyfsClient,
                     let prev_state = conn.get_state(change.prev_change.clone().unwrap()).await?;
                     if prev_state.is_none() {
                         conn.contract_sync_set_remove(&vec![contract_id.clone()]).await?;
+                        contract_info.contract_status = ContractStatus::Storing;
+                        conn.set_contract_info(&contract_id, &contract_info).await?;
                         conn.commit().await?;
                         return Ok(());
                     }
@@ -272,12 +243,14 @@ impl<CLIENT: CyfsClient,
             if let Err(e) = self.dmc.report_merkle_hash(&contract_id, merkle_root, data_block_count as u64).await {
                 if get_app_err_code(&e) == DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED {
                     conn.contract_sync_set_remove(&vec![contract_id.clone()]).await?;
+                    contract_info.contract_status = ContractStatus::Storing;
+                    conn.set_contract_info(&contract_id, &contract_info).await?;
                 } else {
                     return Err(e);
                 }
             } else {
                 conn.save_chunk_list(&contract_id, cur_chunk_list).await?;
-                contract_info.contract_status = ContractStatus::Success;
+                contract_info.contract_status = ContractStatus::Storing;
                 conn.set_contract_info(&contract_id, &contract_info).await?;
                 conn.set_contract_state_sync_complete(&contract_id, &state_ref.id()).await?;
                 conn.contract_sync_set_remove(&vec![contract_id.clone()]).await?;
@@ -352,10 +325,10 @@ impl<CLIENT: CyfsClient,
                         let mut contract_info = conn.get_contract_info(contract_id).await?;
                         if order.as_ref().unwrap().state == DMCOrderState::OrderStateEnd as u8 {
                             log::error!("contract {} end.dmc order {}", contract_id.to_string(), contract_ref.witness().order_id.as_str());
-                            contract_info.contract_status = ContractStatus::ContractOutTime;
                             let chunk_list = conn.get_chunk_list(contract_id).await?;
                             conn.chunk_ref_del(contract_id, &chunk_list).await?;
                             conn.contract_set_remove(&vec![contract_id.clone()]).await?;
+                            conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
                         } else {
                             contract_info.latest_check_time += 7*24*3600*1000000;
                         }
@@ -389,7 +362,11 @@ impl<CLIENT: CyfsClient,
     async fn resp_contract_proof(&self, contract_id: ObjectId) -> BuckyResult<()> {
         app_call_log!("start proof contract: {}", &contract_id);
         let mut conn = self.meta_store.create_meta_connection_named_locked(Self::get_contract_lock_name(&contract_id)).await?;
-        if let Ok(challenge) = conn.get_challenge(&contract_id).await {
+        let contract_info = conn.get_contract_info(&contract_id).await?;
+        if contract_info.contract_status == ContractStatus::Syncing {
+            return Ok(());
+        }
+        if let Some(challenge) = conn.get_challenge(&contract_id).await? {
             let challenge_ref = DsgChallengeObjectRef::from(&challenge);
             if challenge_ref.expire_at() < bucky_time_now() {
                 conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
@@ -402,6 +379,20 @@ impl<CLIENT: CyfsClient,
             let contract_ref = DsgContractObjectRef::from(&contract);
             let chunk_list = match challenge_ref.challenge_type() {
                 ChallengeType::Full => {
+                    let state = conn.get_contract_state(&contract_id).await?;
+                    if state.is_none() {
+                        conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
+                        conn.commit().await?;
+                        return Ok(());
+                    }
+                    let state = state.unwrap();
+                    let cur_state_id = state.desc().object_id();
+                    if &cur_state_id != challenge_ref.contract_state() {
+                        log::info!("contract {} state err.cur {} expect {}", contract_id.to_string(), cur_state_id.to_string(), challenge_ref.contract_state().to_string());
+                        conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
+                        conn.commit().await?;
+                        return Ok(());
+                    }
                     conn.get_chunk_list(&contract_id).await?
                 }
                 ChallengeType::State => {
@@ -446,15 +437,14 @@ impl<CLIENT: CyfsClient,
                     let mut conn = self.meta_store.create_meta_connection_named_locked(Self::get_contract_lock_name(&contract_id)).await?;
                     conn.begin().await?;
                     conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
-                    conn.contract_set_add(&vec![contract_id.clone()]).await?;
-                    let mut contract_info = conn.get_contract_info(&contract_id).await?;
-                    if contract_info.contract_status == ContractStatus::Success {
-                        contract_info.contract_status = ContractStatus::Proof;
-                        conn.set_contract_info(&contract_id, &contract_info).await?;
-                    }
                     conn.commit().await?;
                 }
             }
+        } else {
+            let mut conn = self.meta_store.create_meta_connection_named_locked(Self::get_contract_lock_name(&contract_id)).await?;
+            conn.begin().await?;
+            conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
+            conn.commit().await?;
         }
         Ok(())
     }
@@ -486,6 +476,27 @@ impl<CLIENT: CyfsClient,
 
     pub async fn need_sync_chunk(&self, contract_id: &ObjectId, state_id: &ObjectId) -> BuckyResult<bool> {
         let mut conn = self.meta_store.create_meta_connection().await?;
+        let contract = conn.get_contract(contract_id).await?;
+        if contract.is_none() {
+            return Ok(true);
+        }
+
+        let contract_info = conn.get_contract_info(contract_id).await?;
+        if contract_info.contract_status == ContractStatus::Syncing {
+            let syncing_state = conn.get_syncing_contract_state(contract_id).await?.unwrap();
+            let syncing_id = syncing_state.desc().object_id();
+            return if &syncing_id == state_id {
+                Ok(false)
+            } else {
+                Err(app_err!(DMC_DSG_ERROR_IS_SYNCING, "contract {} is syncing {}", contract_id.to_string(), syncing_id.to_string()))
+            }
+        }
+
+        let state = conn.get_state(state_id.clone()).await?;
+        if state.is_none() {
+            return Ok(true);
+        }
+
         let state = conn.get_contract_state(contract_id).await?;
         if state.is_none() {
             Ok(true)
@@ -504,6 +515,7 @@ impl<CLIENT: CyfsClient,
         let challenge_ref = DsgChallengeObjectRef::from(&challenge);
         let contract_id = challenge_ref.contract_id();
         let state_id = challenge_ref.contract_state();
+        let _locker = Locker::get_locker(Self::get_contract_lock_name(&contract_id)).await;
         match self.need_sync_chunk(contract_id, state_id).await? {
             true => {
                 self.sync_contract_data(contract_id, state_id, &challenge, &source).await?;

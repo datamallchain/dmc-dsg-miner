@@ -684,6 +684,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
     }
 
     async fn add_merkle(&self, order_id: &str, merkle_root: HashValue, data_block_count: u64) -> BuckyResult<TransResult> {
+        log::info!("add_merkle order_id {} merkle_root {} data_block_count {}", order_id, merkle_root.to_string(), data_block_count);
         let params = AddMerkle {
             sender: self.account_name.clone(),
             order_id: order_id.parse().map_err(|e| {
@@ -708,6 +709,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
         hash_data: HashValue,
         nonce: String
     ) -> BuckyResult<TransResult> {
+        log::info!("challenge order_id {} data_id {} hash_data {} nonce {}", order_id, data_id, hash_data.to_string(), nonce);
         let params = ChallengeReq {
             sender: self.account_name.clone(),
             order_id: order_id.parse().map_err(|e| {
@@ -730,6 +732,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
         order_id: &str,
         reply_hash: HashValue
     ) -> BuckyResult<TransResult> {
+        log::info!("add_challenge_resp order_id {} reply_hash {}", order_id, reply_hash.to_string());
         let params = ChallengeResp {
             sender: self.account_name.clone(),
             order_id: order_id.parse().map_err(|e| {
@@ -751,6 +754,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
         data: Vec<u8>,
         cut_merkle: Vec<HashValue>
     ) -> BuckyResult<TransResult> {
+        log::info!("arbitration order_id {}", order_id);
         let params = Arbitration {
             sender: self.account_name.clone(),
             order_id: order_id.parse().map_err(|e| {

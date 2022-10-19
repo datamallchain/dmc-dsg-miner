@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use crate::{ContractStatus};
 use cyfs_base::*;
 
@@ -12,7 +13,7 @@ pub struct ContractInfo {
 impl ProtobufTransform<crate::protos::ContractInfo> for ContractInfo {
     fn transform(value: crate::protos::ContractInfo) -> BuckyResult<Self> {
         Ok(Self {
-            contract_status: ContractStatus::from(value.contract_status as i64),
+            contract_status: ContractStatus::try_from(value.contract_status as i64)?,
             latest_check_time: value.latest_check_time,
             meta_merkle: value.meta_merkle.iter().map(|v| HashValue::from(v.as_slice())).collect()
         })

@@ -246,6 +246,10 @@ impl<
             }
 
             let info = &challenge_info.rows[0];
+            if info.state == DMCChallengeState::ChallengeConsistent as u32 && info.merkle_root == merkle_root.to_string() {
+                return Ok(());
+            }
+
             if info.state != DMCChallengeState::ChallengePrepare as u32 {
                 return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "order {} state is {}, expect ChallengePrepare", dmc_data.order_id.as_str(), info.state));
             }

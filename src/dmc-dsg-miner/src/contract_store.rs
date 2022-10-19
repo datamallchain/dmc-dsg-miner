@@ -1,4 +1,5 @@
 use std::{ops::Range};
+use std::convert::TryFrom;
 use async_std::io::Read;
 use cyfs_base::*;
 use cyfs_chunk_lib::Chunk;
@@ -54,11 +55,12 @@ pub trait ContractMetaStore: Send + Sync + MetaConnection + 'static {
     async fn set_contract_state_sync_complete(&mut self, contract_id: &ObjectId, state_id: &ObjectId) -> BuckyResult<()>;
     async fn save_state_id_by_path(&mut self, path: String, object_id: &ObjectId) -> BuckyResult<()>;
     async fn get_state_id_by_path(&mut self, path: String) -> BuckyResult<Option<ObjectId>>;
+    async fn save_state(&mut self, state: &DsgContractStateObject) -> BuckyResult<()>;
     async fn get_state(&mut self, state_id: ObjectId) -> BuckyResult<Option<DsgContractStateObject>>;
     async fn get_chunks_by_path(&mut self, url_path: String) -> BuckyResult<Vec<ChunkId>>;
     async fn get_chunk_list(&mut self, contract_id: &ObjectId) -> BuckyResult<Vec<ChunkId>>;
     async fn save_chunk_list(&mut self, contract_id: &ObjectId, chunk_list: Vec<ChunkId>) -> BuckyResult<()>;
-    async fn get_challenge(&mut self, contract_id: &ObjectId) -> BuckyResult<DsgChallengeObject>;
+    async fn get_challenge(&mut self, contract_id: &ObjectId) -> BuckyResult<Option<DsgChallengeObject>>;
     async fn save_challenge(&mut self, contract_id: &ObjectId, challenge: &DsgChallengeObject) -> BuckyResult<()>;
     async fn chunk_ref_add(&mut self, contract_id: &ObjectId, chunk_list: &Vec<ChunkId>) -> BuckyResult<()>;
     async fn chunk_ref_del(&mut self, contract_id: &ObjectId, chunk_list: &Vec<ChunkId>) -> BuckyResult<()>;
@@ -172,31 +174,20 @@ pub trait ContractChunkStore: Send + Sync + 'static {
 
 #[derive(Debug,Clone, Copy, Eq, PartialEq)]
 pub enum ContractStatus {
-    Wait,
-    Success,
-    Proof,
-    ProofFail,
-    Down,
-    ToProof,
-    ChallengeOutTime,
-    ContractOutTime,
-    Complete,
-    Other
+    Syncing,
+    Storing,
 }
 
-impl From<i64> for ContractStatus {
-    fn from( v: i64) -> Self {
+impl TryFrom<i64> for ContractStatus {
+    type Error = BuckyError;
+
+    fn try_from( v: i64) -> Result<Self, Self::Error> {
         match v {
-            1 => ContractStatus::Wait,
-            2 => ContractStatus::Success,
-            3 => ContractStatus::Proof,
-            4 => ContractStatus::ProofFail,
-            5 => ContractStatus::Down,
-            6 => ContractStatus::ToProof,
-            7 => ContractStatus::ChallengeOutTime,
-            8 => ContractStatus::ContractOutTime,
-            9 => ContractStatus::Complete,
-            _ => ContractStatus::Other
+            1 => Ok(ContractStatus::Syncing),
+            2 => Ok(ContractStatus::Storing),
+            _ => {
+                Err(cyfs_err!(BuckyErrorCode::UnSupport, "unknown value {}", v))
+            }
         }
     }
 }
@@ -204,16 +195,8 @@ impl From<i64> for ContractStatus {
 impl Into<i64> for ContractStatus {
     fn into(self) -> i64 {
         match self {
-            ContractStatus::Wait => 1,
-            ContractStatus::Success => 2,
-            ContractStatus::Proof => 3,
-            ContractStatus::ProofFail => 4,
-            ContractStatus::Down => 5,
-            ContractStatus::ToProof => 6,
-            ContractStatus::ChallengeOutTime => 7,
-            ContractStatus::ContractOutTime => 8,
-            ContractStatus::Complete => 9,
-            ContractStatus::Other => 10
+            ContractStatus::Syncing => 1,
+            ContractStatus::Storing => 2,
         }
     }
 }

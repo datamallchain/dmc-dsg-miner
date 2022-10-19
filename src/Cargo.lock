@@ -1139,7 +1139,7 @@ dependencies = [
 
 [[package]]
 name = "cyfs-base"
-version = "0.6.1"
+version = "0.6.4"
 dependencies = [
  "aes 0.7.5",
  "async-recursion",
@@ -1191,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "cyfs-bdt"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "async-std",
  "async-trait",
@@ -1235,7 +1235,7 @@ dependencies = [
 
 [[package]]
 name = "cyfs-core"
-version = "0.6.0"
+version = "0.6.2"
 dependencies = [
  "async-std",
  "async-trait",
@@ -1286,7 +1286,7 @@ dependencies = [
 
 [[package]]
 name = "cyfs-dsg-client"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "aes 0.7.5",
  "async-recursion",
@@ -1324,7 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "cyfs-lib"
-version = "0.6.1"
+version = "0.6.3"
 dependencies = [
  "async-h1",
  "async-std",
@@ -1390,7 +1390,7 @@ dependencies = [
 
 [[package]]
 name = "cyfs-util"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "async-h1",
  "async-std",
@@ -2771,9 +2771,9 @@ dependencies = [
 
 [[package]]
 name = "ntapi"
-version = "0.3.7"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c28774a7fd2fbb4f0babd8237ce554b73af68021b5f695a3cebd6c59bac0980f"
+checksum = "bc51db7b362b205941f71232e56c625156eb9a929f8cf74a428fd5bc094a4afc"
 dependencies = [
  "winapi",
 ]
@@ -4393,9 +4393,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.23.13"
+version = "0.26.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3977ec2e0520829be45c8a2df70db2bf364714d8a748316a10c3c35d4d2b01c9"
+checksum = "ade661fa5e048ada64ad7901713301c21d2dbc5b65ee7967de8826c111452960"
 dependencies = [
  "cfg-if 1.0.0",
  "core-foundation-sys",

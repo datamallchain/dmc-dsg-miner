@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::{sync::Arc};
+use std::convert::TryFrom;
 use async_trait::async_trait;
 use cyfs_base::*;
 use cyfs_lib::*;
@@ -79,7 +80,7 @@ impl CyfsStackMetaConnection {
     pub async fn get_down_stat(&self, contract_id: &ObjectId) -> BuckyResult<ContractStatus> {
         if let Some(set_id) = self.get_by_path(format!("/miner/contracts/{}/", contract_id), "down_stat").await? {
             let cobj: ContractSyncStatus = self.get_object_from_noc::<RawObject>(set_id).await?.get()?;
-            Ok(ContractStatus::from(cobj.0))
+            ContractStatus::try_from(cobj.0)
         } else {
             Err(BuckyError::from("not found"))
         }
@@ -630,17 +631,11 @@ impl ContractMetaStore for CyfsStackMetaConnection {
         Ok(())
     }
 
-    async fn get_state(&mut self, state_id: ObjectId) -> BuckyResult<Option<DsgContractStateObject>> {
-        match self.stack.get_object_from_noc(state_id).await {
-            Ok(obj) => Ok(Some(obj)),
-            Err(e) => {
-                if e.code() == BuckyErrorCode::NotFound {
-                    Ok(None)
-                } else {
-                    Err(e)
-                }
-            }
-        }
+    async fn save_state_id_by_path(&mut self, path: String, object_id: &ObjectId) -> BuckyResult<()> {
+        let key = hash(path).await;
+        self.op_env.set_with_key(format!("/miner/contracts/http_path/"), key, object_id, None, true).await?;
+
+        Ok(())
     }
 
     async fn get_state_id_by_path(&mut self, path: String) -> BuckyResult<Option<ObjectId>> {
@@ -653,11 +648,23 @@ impl ContractMetaStore for CyfsStackMetaConnection {
         rt
     }
 
-    async fn save_state_id_by_path(&mut self, path: String, object_id: &ObjectId) -> BuckyResult<()> {
-        let key = hash(path).await;
-        self.op_env.set_with_key(format!("/miner/contracts/http_path/"), key, object_id, None, true).await?;
-
+    async fn save_state(&mut self, state: &DsgContractStateObject) -> BuckyResult<()> {
+        let state_ref = DsgContractStateObjectRef::from(state);
+        self.op_env.insert("/miner/states/", &state_ref.id()).await?;
         Ok(())
+    }
+
+    async fn get_state(&mut self, state_id: ObjectId) -> BuckyResult<Option<DsgContractStateObject>> {
+        match self.stack.get_object_from_noc(state_id).await {
+            Ok(obj) => Ok(Some(obj)),
+            Err(e) => {
+                if e.code() == BuckyErrorCode::NotFound {
+                    Ok(None)
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 
     async fn get_chunks_by_path(&mut self, url_path: String) -> BuckyResult<Vec<ChunkId>> {
@@ -690,11 +697,22 @@ impl ContractMetaStore for CyfsStackMetaConnection {
         Ok(())
     }
 
-    async fn get_challenge(&mut self, contract_id: &ObjectId) -> BuckyResult<DsgChallengeObject> {
+    async fn get_challenge(&mut self, contract_id: &ObjectId) -> BuckyResult<Option<DsgChallengeObject>> {
         if let Some(obj_id) = self.get_by_path(format!("/miner/contracts/{}/", contract_id), "challenge").await? {
-            self.get_object_from_noc(obj_id).await
+            match self.get_object_from_noc::<DsgChallengeObject>(obj_id).await {
+                Ok(obj) => {
+                    Ok(Some(obj))
+                }
+                Err(e) => {
+                    if e.code() == BuckyErrorCode::NotFound {
+                        Ok(None)
+                    } else {
+                        Err(e)
+                    }
+                }
+            }
          } else {
-             Err(BuckyError::from("not found contract"))
+             Ok(None)
          }
     }
 
@@ -716,6 +734,10 @@ impl ContractMetaStore for CyfsStackMetaConnection {
 
     async fn chunk_del_list_del(&mut self, chunk_list: &Vec<ChunkId>) -> BuckyResult<()> {
         self.del_list_remove(chunk_list).await
+    }
+
+    async fn get_del_chunk_list(&mut self) -> BuckyResult<Vec<ChunkId>> {
+        Ok(self.del_list().await?.iter().map(|v| v.clone()).collect())
     }
 
     async fn get_chunk_merkle_root(&mut self, chunk_list: &Vec<ChunkId>, merkle_chunk_size: u32) -> BuckyResult<Vec<(ChunkId, HashValue)>> {
@@ -740,10 +762,6 @@ impl ContractMetaStore for CyfsStackMetaConnection {
         let root = merkle.root();
         let data = merkle.get_cache().get_data(0)?;
         Ok((HashValue::from(root), data.to_vec()))
-    }
-
-    async fn get_del_chunk_list(&mut self) -> BuckyResult<Vec<ChunkId>> {
-        Ok(self.del_list().await?.iter().map(|v| v.clone()).collect())
     }
 }
 
