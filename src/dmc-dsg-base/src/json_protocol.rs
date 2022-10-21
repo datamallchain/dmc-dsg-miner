@@ -5,8 +5,8 @@ pub enum JsonProtocol {
     GetDMCKeyResp,
     GetDMCAccount,
     GetDMCAccountResp,
-    SetDMCAccount,
-    SetDMCAccountResp,
+    SetDMCAccount = 8,
+    SetDMCAccountResp = 9,
     SetHttpDomain,
     SetHttpDomainResp,
 }

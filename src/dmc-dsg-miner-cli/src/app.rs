@@ -4,7 +4,7 @@ use async_std::task::JoinHandle;
 use cyfs_base::{BuckyErrorCode, BuckyResult, NamedObject, ObjectDesc, ObjectId, OwnerObjectDesc, RawConvertTo};
 use cyfs_core::{DecApp, DecAppObj};
 use cyfs_lib::{SharedCyfsStack, UtilGetSystemInfoOutputRequest};
-use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, CyfsNOC, SimpleSignatureProvider, cyfs_err, SetDMCAccount, DMCPrivateKey, CyfsPath, CyfsClient, DMCDsgConfig, LocalDMCTxSender, DMCTxSender};
+use dmc_dsg_base::{Authority, DMCClient, DSGJSON, JSONObject, JsonProtocol, KeyWeight, SimpleSignatureProvider, cyfs_err, SetDMCAccount, DMCPrivateKey, CyfsPath, CyfsClient, DMCDsgConfig, LocalDMCTxSender, DMCTxSender};
 
 pub struct DmcInfo {
     pub dmc_account: String,
@@ -141,8 +141,6 @@ impl App {
         if minted_pst + input_pst > max_pst {
             return Err(cyfs_err!(BuckyErrorCode::InvalidInput, "maximun mining quantity is {} pst, has minted {}", max_pst, minted_pst));
         }
-        let dec_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), "DMC DSG service");
-        let req_path = CyfsPath::new(self.ood_id.clone(), dec_id.clone(), "dmc_account_commands").to_path();
         dmc_client.mint(pst_count).await?;
         Ok(())
     }
