@@ -533,6 +533,13 @@ impl<CLIENT: CyfsClient,
         }
         Ok((contract_id.unwrap(), state_id.unwrap()))
     }
+
+    pub async fn get_chunk_merkle_hash(&self, chunk_list: Vec<ChunkId>, chunk_size: u32) -> BuckyResult<Vec<HashValue>> {
+        let mut conn = self.meta_store.create_meta_connection().await?;
+        let list = conn.get_chunk_merkle_root(&chunk_list, chunk_size).await?;
+        let list = list.into_iter().map(|(_, hash) | hash).collect();
+        Ok(list)
+    }
 }
 
 #[derive(Clone)]

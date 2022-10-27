@@ -16,3 +16,9 @@ pub struct SetDMCAccount {
     pub dmc_account: String,
     pub dmc_key: String,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct GetChunkMerkleHashReq {
+    pub chunk_list: Vec<String>,
+    pub chunk_size: u32,
+}

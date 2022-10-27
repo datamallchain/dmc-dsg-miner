@@ -1,6 +1,7 @@
 use std::{
     sync::Arc,
 };
+use std::str::FromStr;
 use cyfs_base::*;
 use cyfs_lib::*;
 use cyfs_util::*;
@@ -85,6 +86,8 @@ impl OodMiner {
                 let req = JSONObject::clone_from_slice(param.request.object.object_raw.as_slice())?;
                 let ret = if req.get_json_obj_type() == 10000 {
                     self.miner.on_get_order_info(req.get()?).await?
+                } else if req.get_json_obj_type() == 10002 {
+                    self.miner.on_get_chunk_merkle_hash(req.get()?).await?
                 } else {
                     None
                 };
@@ -139,6 +142,21 @@ impl OodMiner {
             self.owner_id.clone(),
             10001,
             &(contract_id.to_string(), state_id.to_string())
+        )?))
+    }
+
+    async fn on_get_chunk_merkle_hash(&self, req: GetChunkMerkleHashReq) -> BuckyResult<Option<JSONObject>> {
+        let mut chunk_list = Vec::new();
+        for chunk_id in req.chunk_list.iter() {
+            chunk_list.push(ChunkId::from_str(chunk_id)?);
+        }
+        let hash_list = self.miner.get_chunk_merkle_hash(chunk_list, req.chunk_size).await?;
+        let list: Vec<String> = hash_list.iter().map(|v| v.to_string()).collect();
+        Ok(Some(JSONObject::new(
+            dsg_dec_id(),
+            self.owner_id.clone(),
+            10003,
+            &list
         )?))
     }
 }
