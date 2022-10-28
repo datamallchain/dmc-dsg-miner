@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
         .start();
 
     let mut builder = ConfigBuilder::<DefaultState>::default();
-    builder = builder.set_default("dmc_server", "http://explorer.dmctech.io:8870").unwrap();
+    builder = builder.set_default("dmc_server", "http://explorer.dmctech.io").unwrap();
 
     let data_dir = get_app_data_dir(DMCDsgConfig::APP_NAME);
     let config_path = data_dir.join("config.toml");
