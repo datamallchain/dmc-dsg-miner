@@ -1,4 +1,3 @@
-use async_std::net::TcpStream;
 use cyfs_base::*;
 use serde::Deserialize;
 use tide::http::{Method, Mime, Request, Url};
@@ -13,14 +12,7 @@ pub async fn http_get_request(url: &str) -> BuckyResult<Vec<u8>> {
         port = url_obj.port().unwrap();
     }
     let req = Request::new(Method::Get, url_obj);
-    let addr = format!("{}:{}", host, port);
-    let stream = TcpStream::connect(addr).await.map_err(|err| {
-        let msg = app_msg!("connect to failed! host={}, err={}", host, err);
-        log::error!("{}", msg.as_str());
-        BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
-    })?;
-
-    let mut resp = async_h1::connect(stream, req).await.map_err(|err| {
+    let mut resp = surf::client().send(req).await.map_err(|err| {
         let msg = app_msg!("http connect error! host={}, err={}", host, err);
         log::error!("{}", msg.as_str());
         BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
@@ -45,14 +37,7 @@ pub async fn http_post_request(url: &str, param: &[u8], content_type: Option<&st
         req.set_content_type(Mime::from(content_type.unwrap()));
     }
     req.set_body(param);
-    let addr = format!("{}:{}", host, port);
-    let stream = TcpStream::connect(addr).await.map_err(|err| {
-        let msg = app_msg!("connect to failed! host={}, err={}", host, err);
-        log::error!("{}", msg.as_str());
-        BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
-    })?;
-
-    let mut resp = async_h1::connect(stream, req).await.map_err(|err| {
+    let mut resp = surf::client().send(req).await.map_err(|err| {
         let msg = app_msg!("http connect error! host={}, err={}", host, err);
         log::error!("{}", msg.as_str());
         BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
@@ -77,14 +62,7 @@ pub async fn http_post_request3<T: for<'de> Deserialize<'de>>(url: &str, param: 
         req.set_content_type(Mime::from(content_type.unwrap()));
     }
     req.set_body(param);
-    let addr = format!("{}:{}", host, port);
-    let stream = TcpStream::connect(addr).await.map_err(|err| {
-        let msg = app_msg!("connect to failed! host={}, err={}", host, err);
-        log::error!("{}", msg.as_str());
-        BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
-    })?;
-
-    let mut resp = async_h1::connect(stream, req).await.map_err(|err| {
+    let mut resp = surf::client().send(req).await.map_err(|err| {
         let msg = app_msg!("http connect error! host={}, err={}", host, err);
         log::error!("{}", msg.as_str());
         BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
@@ -108,14 +86,7 @@ pub async fn http_post_json(url: &str, param: json::JsonValue) -> BuckyResult<js
     let mut req = Request::new(Method::Post, url_obj);
     req.set_content_type(Mime::from("application/json"));
     req.set_body(param.to_string());
-    let addr = format!("{}:{}", host, port);
-    let stream = TcpStream::connect(addr).await.map_err(|err| {
-        let msg = app_msg!("connect to failed! host={}, err={}", host, err);
-        log::error!("{}", msg.as_str());
-        BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
-    })?;
-
-    let mut resp = async_h1::connect(stream, req).await.map_err(|err| {
+    let mut resp = surf::client().send(req).await.map_err(|err| {
         let msg = app_msg!("http connect error! host={}, err={}", host, err);
         log::error!("{}", msg.as_str());
         BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
@@ -145,14 +116,7 @@ pub async fn http_post_json2<T: for<'de> Deserialize<'de>>(url: &str, param: jso
     let mut req = Request::new(Method::Post, url_obj);
     req.set_content_type(Mime::from("application/json"));
     req.set_body(param.to_string());
-    let addr = format!("{}:{}", host, port);
-    let stream = TcpStream::connect(addr).await.map_err(|err| {
-        let msg = app_msg!("connect to failed! host={}, err={}", host, err);
-        log::error!("{}", msg.as_str());
-        BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
-    })?;
-
-    let mut resp = async_h1::connect(stream, req).await.map_err(|err| {
+    let mut resp = surf::client().send(req).await.map_err(|err| {
         let msg = app_msg!("http connect error! host={}, err={}", host, err);
         log::error!("{}", msg.as_str());
         BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
@@ -164,4 +128,9 @@ pub async fn http_post_json2<T: for<'de> Deserialize<'de>>(url: &str, param: jso
         log::error!("{}", msg.as_str());
         BuckyError::new(BuckyErrorCode::InvalidData, msg)
     })
+    // resp.body_json().await.map_err(|err| {
+    //     let msg = app_msg!("recv {} error! err={}", tx, err);
+    //     log::error!("{}", msg.as_str());
+    //     BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
+    // })
 }
