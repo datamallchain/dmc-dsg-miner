@@ -813,6 +813,10 @@ impl<T: DMCTxSender> DMCClient<T> {
         }
     }
 
+    pub fn get_account_name(&self) -> &str {
+        self.account_name.as_str()
+    }
+
     pub async fn get_user_orders(&self, limit: Option<i32>) -> BuckyResult<GetTableRowsResult<DMCOrder>> {
         let req = GetTableRowsReq {
             json: true,

@@ -3,9 +3,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use cyfs_base::*;
 use cyfs_core::{DecApp, DecAppObj};
+use cyfs_dsg_client::DsgContractObject;
 use cyfs_lib::SharedCyfsStack;
 use dmc_dsg_base::{Setting, SettingRef, DMCDsgConfig, CyfsPath, JSONObject, DSGJSON, CyfsClient};
-use crate::{CyfsStackFileDownloader, CyfsStackMetaStore, DMC, DmcDsgMiner, NocChunkStore, OodMiner, RemoteDMCTxSender, RemoteProtocol};
+use crate::{ContractMetaStore, CyfsStackFileDownloader, CyfsStackMetaStore, DMC, DMCContractData, DmcDsgMiner, MetaStore, NocChunkStore, OodMiner, RemoteDMCTxSender, RemoteProtocol};
 
 pub struct App {
     setting: SettingRef,
@@ -47,11 +48,37 @@ impl App {
         &self.stack
     }
 
+    async fn set_object_access(&self) -> BuckyResult<()> {
+        let mut conn = self.chunk_meta.create_meta_connection().await?;
+        conn.begin().await?;
+        let contract_set = conn.contract_set().await?;
+        for contract_id in contract_set.iter() {
+            let contract = conn.get_contract(contract_id).await?;
+            if contract.is_none() {
+                continue;
+            }
+            conn.save_contract(contract.as_ref().unwrap()).await?;
+            let state = conn.get_contract_state(contract_id).await?;
+            if state.is_none() {
+                continue;
+            }
+            conn.save_state(state.as_ref().unwrap()).await?;
+        }
+        conn.commit().await?;
+        Ok(())
+    }
+
     pub async fn init(&self) -> BuckyResult<()> {
         {
             if self.miner.lock().unwrap().is_some() {
                 return Ok(());
             }
+        }
+
+        let mut has_set_object_access = self.chunk_meta.get_setting("has_set_object_access", "0").await?;
+        if has_set_object_access == "0".to_string() {
+            self.set_object_access().await?;
+            self.chunk_meta.set_setting("has_set_object_access".to_string(), "1".to_string()).await?;
         }
 
         loop {

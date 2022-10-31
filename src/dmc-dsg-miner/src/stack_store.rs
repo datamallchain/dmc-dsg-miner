@@ -93,16 +93,6 @@ impl CyfsStackMetaConnection {
         Ok(())
     }
 
-    pub async fn contract_set(&self) -> BuckyResult<BTreeSet<ObjectId>> {
-        let mut set = BTreeSet::new();
-        if let Some(set_id) = self.get_by_path("/miner/contracts/list/", "contract_set").await? {
-            let list: ContractList = self.get_object_from_noc::<RawObject>(set_id).await?.get()?;
-            set = list.0;
-        }
-
-        Ok(set)
-    }
-
     pub async fn contract_set_add(&self, contract_list: &Vec<ObjectId>) -> BuckyResult<()> {
         self.op_env.lock(vec!["/miner/contracts/list/contract_set".to_string()], 10000).await?;
         let list = if let Some(set_id) = self.get_by_path("/miner/contracts/list/", "contract_set").await? {
@@ -392,7 +382,7 @@ impl ContractMetaStore for CyfsStackMetaConnection {
     }
 
     async fn save_contract(&mut self, contract: &DsgContractObject<DMCContractData>) -> BuckyResult<()> {
-        let contract_id = self.stack.put_object_to_noc(&contract).await?;
+        let contract_id = self.stack.put_object_to_noc(&contract, Some(AccessString::full())).await?;
         self.op_env.set_with_path(format!("/miner/contracts/{}/contract", contract_id.to_string()), &contract_id, None, true).await?;
         let contract_ref = DsgContractObjectRef::from(contract);
         self.op_env.set_with_path(format!("/miner/dmc_orders/{}", contract_ref.witness().order_id.as_str()), &contract_id, None, true).await?;
@@ -529,7 +519,7 @@ impl ContractMetaStore for CyfsStackMetaConnection {
     async fn set_contract_info(&mut self, contract_id: &ObjectId, contract_info: &ContractInfo) -> BuckyResult<()> {
         let path = format!("/miner/contracts/{}/info", contract_id.to_string());
         let raw_obj = RawObject::new(ObjectId::default(), ObjectId::default(), 34532, contract_info)?;
-        let obj_id = self.stack.put_object_to_noc(&raw_obj).await?;
+        let obj_id = self.stack.put_object_to_noc(&raw_obj, None).await?;
         self.op_env.set_with_path(path, &obj_id, None, true).await?;
         Ok(())
     }
@@ -650,6 +640,7 @@ impl ContractMetaStore for CyfsStackMetaConnection {
 
     async fn save_state(&mut self, state: &DsgContractStateObject) -> BuckyResult<()> {
         let state_ref = DsgContractStateObjectRef::from(state);
+        self.stack.put_object_to_noc(state, Some(AccessString::full())).await?;
         self.op_env.insert("/miner/states/", &state_ref.id()).await?;
         Ok(())
     }

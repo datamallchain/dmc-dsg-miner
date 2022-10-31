@@ -40,23 +40,38 @@ impl OodMiner {
         impl EventListenerAsyncRoutine<RouterHandlerPostObjectRequest, RouterHandlerPostObjectResult> for OnChallenge {
             async fn call(&self, param: &RouterHandlerPostObjectRequest) -> BuckyResult<RouterHandlerPostObjectResult> {
                 log::info!("OnChallenge, id={}, from={}", param.request.object.object_id, param.request.common.source);
-                let challenge = DsgChallengeObject::clone_from_slice(param.request.object.object_raw.as_slice())
-                    .map_err(|err| {
-                        log::info!("OnChallenge failed, id={}, from={}, err=decode challenge {}", param.request.object.object_id, param.request.common.source, err);
-                        err
-                    })?;
-                let _ = self.miner.miner.on_challenge(challenge, param.request.common.source.zone.device.as_ref().unwrap().object_id().clone()).await
-                    .map_err(|err| {
-                        log::info!("OnChallenge failed, id={}, from={}, err=delegate {}", param.request.object.object_id, param.request.common.source, err);
-                        err
-                    })?;
-                Ok(RouterHandlerPostObjectResult {
-                    action: RouterHandlerAction::Response,
-                    request: None,
-                    response: Some(Ok(NONPostObjectInputResponse {
-                        object: None
-                    }))
-                })
+                let ret: BuckyResult<()> = async move {
+                    let challenge = DsgChallengeObject::clone_from_slice(param.request.object.object_raw.as_slice())
+                        .map_err(|err| {
+                            log::info!("OnChallenge failed, id={}, from={}, err=decode challenge {}", param.request.object.object_id, param.request.common.source, err);
+                            err
+                        })?;
+                    let _ = self.miner.miner.on_challenge(challenge, param.request.common.source.zone.device.as_ref().unwrap().object_id().clone()).await
+                        .map_err(|err| {
+                            log::info!("OnChallenge failed, id={}, from={}, err=delegate {}", param.request.object.object_id, param.request.common.source, err);
+                            err
+                        })?;
+                    Ok(())
+                }.await;
+                match ret {
+                    Ok(_) => {
+                        Ok(RouterHandlerPostObjectResult {
+                            action: RouterHandlerAction::Response,
+                            request: None,
+                            response: Some(Ok(NONPostObjectInputResponse {
+                                object: None
+                            }))
+                        })
+                    }
+                    Err(e) => {
+                        log::error!("handle err {}", &e);
+                        Ok(RouterHandlerPostObjectResult {
+                            action: RouterHandlerAction::Response,
+                            request: None,
+                            response: Some(Err(e))
+                        })
+                    }
+                }
             }
         }
 
@@ -83,34 +98,49 @@ impl OodMiner {
         impl EventListenerAsyncRoutine<RouterHandlerPostObjectRequest, RouterHandlerPostObjectResult> for OnCommand{
             async fn call(&self, param: &RouterHandlerPostObjectRequest) -> BuckyResult<RouterHandlerPostObjectResult> {
                 log::info!("OnCommand, id={}, from={}", param.request.object.object_id, param.request.common.source);
-                let req = JSONObject::clone_from_slice(param.request.object.object_raw.as_slice())?;
-                let ret = if req.get_json_obj_type() == 10000 {
-                    self.miner.on_get_order_info(req.get()?).await?
-                } else if req.get_json_obj_type() == 10002 {
-                    self.miner.on_get_chunk_merkle_hash(req.get()?).await?
-                } else {
-                    None
-                };
-                if ret.is_none() {
-                    Ok(RouterHandlerPostObjectResult {
-                        action: RouterHandlerAction::Response,
-                        request: None,
-                        response: Some(Ok(NONPostObjectInputResponse {
-                            object: None
-                        }))
-                    })
-                } else {
-                    Ok(RouterHandlerPostObjectResult {
-                        action: RouterHandlerAction::Response,
-                        request: None,
-                        response: Some(Ok(NONPostObjectInputResponse {
-                            object: Some(NONObjectInfo {
-                                object_id: ret.as_ref().unwrap().desc().calculate_id(),
-                                object_raw: ret.as_ref().unwrap().to_vec()?,
-                                object: None
+                let ret: BuckyResult<Option<JSONObject>> = async move {
+                    let req = JSONObject::clone_from_slice(param.request.object.object_raw.as_slice())?;
+                    let ret = if req.get_json_obj_type() == 10000 {
+                        self.miner.on_get_order_info(req.get()?).await?
+                    } else if req.get_json_obj_type() == 10002 {
+                        self.miner.on_get_chunk_merkle_hash(req.get()?).await?
+                    } else {
+                        None
+                    };
+                    Ok(ret)
+                }.await;
+                match ret {
+                    Ok(ret) => {
+                        if ret.is_none() {
+                            Ok(RouterHandlerPostObjectResult {
+                                action: RouterHandlerAction::Response,
+                                request: None,
+                                response: Some(Ok(NONPostObjectInputResponse {
+                                    object: None
+                                }))
                             })
-                        }))
-                    })
+                        } else {
+                            Ok(RouterHandlerPostObjectResult {
+                                action: RouterHandlerAction::Response,
+                                request: None,
+                                response: Some(Ok(NONPostObjectInputResponse {
+                                    object: Some(NONObjectInfo {
+                                        object_id: ret.as_ref().unwrap().desc().calculate_id(),
+                                        object_raw: ret.as_ref().unwrap().to_vec()?,
+                                        object: None
+                                    })
+                                }))
+                            })
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("handle err {}", &e);
+                        Ok(RouterHandlerPostObjectResult {
+                            action: RouterHandlerAction::Response,
+                            request: None,
+                            response: Some(Err(e))
+                        })
+                    }
                 }
             }
         }

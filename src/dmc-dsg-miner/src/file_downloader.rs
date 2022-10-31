@@ -12,7 +12,7 @@ pub struct DownloadParams {
 
 #[async_trait::async_trait]
 pub trait FileDownloader: 'static + Clone + Sync + Send {
-    async fn download(&self, chunk_list: Vec<ChunkId>, source_list: Vec<DeviceId>, params: DownloadParams) -> BuckyResult<()>;
+    async fn download(&self, chunk_list: Vec<ChunkId>, source_list: Vec<DeviceId>, params: DownloadParams, timeout: u64) -> BuckyResult<()>;
 }
 
 #[derive(Clone)]
@@ -32,7 +32,7 @@ impl CyfsStackFileDownloader {
 
 #[async_trait::async_trait]
 impl FileDownloader for CyfsStackFileDownloader {
-    async fn download(&self, chunk_list: Vec<ChunkId>, source_list: Vec<DeviceId>, _params: DownloadParams) -> BuckyResult<()> {
+    async fn download(&self, chunk_list: Vec<ChunkId>, source_list: Vec<DeviceId>, _params: DownloadParams, timeout: u64) -> BuckyResult<()> {
         let chunk_ref = if chunk_list.len() < 50 {
             &chunk_list[..]
         } else {
@@ -42,7 +42,8 @@ impl FileDownloader for CyfsStackFileDownloader {
         let chunk_bundle = ChunkBundle::new(chunk_list, ChunkBundleHashMethod::Serial);
         let owner_id = self.stack.local_device().desc().owner().clone().unwrap();
         let file = File::new(owner_id, chunk_bundle.len(), chunk_bundle.calc_hash_value(), ChunkList::ChunkInBundle(chunk_bundle)).no_create_time().build();
-        let file_id = self.stack.put_object_to_noc(&file).await?;
+        let file_id = self.stack.put_object_to_noc(&file, None).await?;
+        let mut is_timeout = false;
 
         let task_id = self.stack.trans().create_task(&TransCreateTaskOutputRequest {
             common: NDNOutputRequestCommon {
@@ -94,6 +95,10 @@ impl FileDownloader for CyfsStackFileDownloader {
                     return Err(BuckyError::new(err, msg))
                 }
             }
+            if bucky_time_now() > timeout {
+                is_timeout = true;
+                break;
+            }
             async_std::task::sleep(Duration::from_secs(1)).await;
         }
         self.stack.trans().delete_task(&TransTaskOutputRequest {
@@ -107,6 +112,10 @@ impl FileDownloader for CyfsStackFileDownloader {
             },
             task_id
         }).await?;
-        Ok(())
+        if is_timeout {
+            Err(BuckyError::new(BuckyErrorCode::Timeout, ""))
+        } else {
+            Ok(())
+        }
     }
 }

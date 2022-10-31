@@ -93,7 +93,7 @@ impl<
             self.dmc_client.report_cyfs_info(&CyfsInfo {
                 addr,
                 http: if self.http_domain.is_empty() {None} else {Some(self.http_domain.clone())},
-                v: Some(2),
+                v: Some(3),
                 mid: Some(self.dec_id.to_string())
             }).await?;
         }
@@ -212,11 +212,15 @@ impl<
             log::info!("recv contract dmc_order {}", dmc_data.order_id.as_str());
         }
 
-        #[cfg(not(feature = "no_dmc"))]
+        // #[cfg(not(feature = "no_dmc"))]
         {
-            let order = self.dmc_client.get_order_of_miner(dmc_data.order_id.as_str()).await?;
+            let order = self.dmc_client.get_order_by_id(dmc_data.order_id.as_str()).await?;
 
             if order.is_some() {
+                if order.as_ref().unwrap().miner.as_str() != self.dmc_client.get_account_name() {
+                    log::info!("miner account unmatch {} expect {}", order.as_ref().unwrap().miner.as_str(), self.dmc_client.get_account_name());
+                    return Ok(false);
+                }
                 let cyfs_info = self.dmc_client.get_cyfs_info(order.as_ref().unwrap().user.clone()).await?;
                 if cyfs_info.addr == source.to_string() {
                     return Ok(true)
