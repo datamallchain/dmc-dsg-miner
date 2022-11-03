@@ -55,6 +55,7 @@ async fn main() {
 
     let mut builder = ConfigBuilder::<DefaultState>::default();
     builder = builder.set_default("dmc_server", "http://154.22.122.40:8870").unwrap();
+    builder = builder.set_default("dmc_tracker_server", "http://18.117.247.238:8088").unwrap();
 
     let data_dir = get_app_data_dir(DMCDsgConfig::APP_NAME);
     let config_path = data_dir.join("config.toml");
@@ -68,7 +69,7 @@ async fn main() {
     let object_stack = Arc::new(SharedCyfsStack::open_runtime(Some(dec_id.clone())).await.unwrap());
     object_stack.wait_online(None).await.unwrap();
 
-    let app = App::new(object_stack, dec_id, config.get_string("dmc_server").unwrap()).await.unwrap();
+    let app = App::new(object_stack, dec_id, config.get_string("dmc_server").unwrap(), config.get_string("dmc_tracker_server").unwrap()).await.unwrap();
     match matches.subcommand() {
         ("create_light_auth", matches) => {
             let dmc_account = matches.as_ref().unwrap().value_of("dmc_account").unwrap();

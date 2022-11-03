@@ -20,10 +20,11 @@ pub struct App {
     ood_id: ObjectId,
     owner_id: ObjectId,
     dmc_sever: String,
+    dmc_tracker_server: String,
 }
 
 impl App {
-    pub async fn new(stack: Arc<SharedCyfsStack>, dec_id: ObjectId, dmc_server: String) -> BuckyResult<Self> {
+    pub async fn new(stack: Arc<SharedCyfsStack>, dec_id: ObjectId, dmc_server: String, dmc_tracker_server: String) -> BuckyResult<Self> {
         let owner_id = stack.local_device().desc().owner().as_ref().unwrap().clone();
         let ood_id = stack.resolve_ood(owner_id.clone()).await?;
         Ok(Self {
@@ -32,6 +33,7 @@ impl App {
             ood_id,
             owner_id,
             dmc_sever: dmc_server.to_string(),
+            dmc_tracker_server
         })
     }
 
@@ -57,6 +59,7 @@ impl App {
         let dmc_client = DMCClient::new(
             dmc_account,
             self.dmc_sever.as_str(),
+            self.dmc_tracker_server.as_str(),
             tx_sender
         );
 
@@ -101,6 +104,7 @@ impl App {
         let dmc_client = DMCClient::new(
             dmc_account,
             self.dmc_sever.as_str(),
+            self.dmc_tracker_server.as_str(),
             tx_sender
         );
         dmc_client.stake(dmc_count).await?;
@@ -121,6 +125,7 @@ impl App {
         let dmc_client = DMCClient::new(
             dmc_account,
             self.dmc_sever.as_str(),
+            self.dmc_tracker_server.as_str(),
             tx_sender
             );
         let minted_pst = dmc_client.get_pst_amount(dmc_account).await?;
@@ -153,6 +158,7 @@ impl App {
         let dmc_client = DMCClient::new(
             dmc_account,
             self.dmc_sever.as_str(),
+            self.dmc_tracker_server.as_str(),
             tx_sender
         );
         dmc_client.bill(pst_count.to_string(), price, "".to_string()).await?;
@@ -167,6 +173,7 @@ impl App {
         let dmc_client = DMCClient::new(
             dmc_account,
             self.dmc_sever.as_str(),
+            self.dmc_tracker_server.as_str(),
             tx_sender
         );
         let minted_pst = dmc_client.get_pst_amount(dmc_account).await?;
