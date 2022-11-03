@@ -15,6 +15,7 @@ pub struct App {
     stack: Arc<SharedCyfsStack>,
     miner: Mutex<Option<OodMiner>>,
     dmc_server: String,
+    dmc_tracker_server: String,
     dec_id: ObjectId,
     dmc_dsg_dec_id: ObjectId,
 }
@@ -26,6 +27,7 @@ impl App {
         chunk_meta: Arc<CyfsStackMetaStore>,
         raw_data_store: Arc<NocChunkStore>,
         dmc_server: String,
+        dmc_tracker_server: String,
         dec_id: ObjectId,
     ) -> BuckyResult<AppRef> {
         let setting = Setting::new(stack.clone());
@@ -39,6 +41,7 @@ impl App {
             stack,
             miner: Mutex::new(None),
             dmc_server,
+            dmc_tracker_server,
             dec_id,
             dmc_dsg_dec_id,
         }))
@@ -91,6 +94,7 @@ impl App {
                     self.chunk_meta.clone(),
                     self.raw_data_store.clone(),
                     self.dmc_server.as_str(),
+                    self.dmc_tracker_server.as_str(),
                     dmc_account.as_ref().unwrap().as_str(),
                     self.get_http_domain().await?,
                     dmc_sender)?;

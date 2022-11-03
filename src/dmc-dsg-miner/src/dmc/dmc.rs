@@ -56,11 +56,12 @@ impl<
         contract_store: Arc<dyn MetaStore<CONN>>,
         raw_data_store: Arc<CHUNKSTORE>,
         dmc_server: &str,
+        dmc_tracker_server: &str,
         dmc_account: &str,
         http_domain: String,
         dmc_sender: DMCTXSENDER,
     ) -> BuckyResult<DMCRef<STACK, CONN, CHUNKSTORE, DMCTXSENDER>> {
-        let dmc_client = DMCClient::new(dmc_account, dmc_server, dmc_sender);
+        let dmc_client = DMCClient::new(dmc_account, dmc_server, dmc_tracker_server, dmc_sender);
         let dmc = DMCRef::new(Self {
             dmc_client,
             stack,
@@ -273,7 +274,7 @@ impl<
         Ok(())
     }
 
-    pub async fn get_order(&self, order_id: &str) -> BuckyResult<Option<DMCOrder>> {
+    pub async fn get_order(&self, order_id: &str) -> BuckyResult<Option<TrackerDMCOrder>> {
         self.dmc_client.get_order_by_id(order_id).await
     }
 }

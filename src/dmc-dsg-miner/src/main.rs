@@ -32,6 +32,7 @@ async fn main() -> Result<()> {
 
     let mut builder = ConfigBuilder::<DefaultState>::default();
     builder = builder.set_default("dmc_server", "http://154.22.122.40:8870").unwrap();
+    builder = builder.set_default("dmc_tracker_server", "http://18.117.247.238:8088").unwrap();
 
     let data_dir = get_app_data_dir(DMCDsgConfig::APP_NAME);
     let config_path = data_dir.join("config.toml");
@@ -54,6 +55,7 @@ async fn main() -> Result<()> {
         meta_store.clone(),
         raw_data_store.clone(),
         config.get_string("dmc_server").unwrap(),
+        config.get_string("dmc_tracker_server").unwrap(),
         dec_id.clone()).await?;
     if let Err(e) = app.init().await {
         if get_app_err_code(&e) != DMC_DSG_ERROR_REPORT_FAILED {
