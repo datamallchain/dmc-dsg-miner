@@ -60,6 +60,7 @@ impl<
         dmc_account: &str,
         http_domain: String,
         dmc_sender: DMCTXSENDER,
+        challenge_check_interval: u64
     ) -> BuckyResult<DMCRef<STACK, CONN, CHUNKSTORE, DMCTXSENDER>> {
         let dmc_client = DMCClient::new(dmc_account, dmc_server, dmc_tracker_server, dmc_sender);
         let dmc = DMCRef::new(Self {
@@ -76,11 +77,18 @@ impl<
         let tmp_dmc = dmc.clone();
         #[cfg(not(feature = "no_dmc"))]
         async_std::task::spawn(async move {
+            let mut check_interval = challenge_check_interval;
             loop {
                 if let Err(e) = tmp_dmc.check_challenge().await {
                     log::error!("check challenge err {}", e);
+                    check_interval = 2 * check_interval;
+                    if check_interval > 3600 * 6 {
+                        check_interval = 3600 * 6;
+                    }
+                } else {
+                    check_interval = challenge_check_interval;
                 }
-                async_std::task::sleep(Duration::from_secs(60)).await;
+                async_std::task::sleep(Duration::from_secs(check_interval)).await;
             }
         });
 

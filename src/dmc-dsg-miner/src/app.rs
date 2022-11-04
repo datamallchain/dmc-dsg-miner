@@ -18,6 +18,7 @@ pub struct App {
     dmc_tracker_server: String,
     dec_id: ObjectId,
     dmc_dsg_dec_id: ObjectId,
+    challenge_check_interval: u64,
 }
 pub type AppRef = Arc<App>;
 
@@ -29,6 +30,7 @@ impl App {
         dmc_server: String,
         dmc_tracker_server: String,
         dec_id: ObjectId,
+        challenge_check_interval: u64,
     ) -> BuckyResult<AppRef> {
         let setting = Setting::new(stack.clone());
         setting.load().await?;
@@ -44,6 +46,7 @@ impl App {
             dmc_tracker_server,
             dec_id,
             dmc_dsg_dec_id,
+            challenge_check_interval
         }))
     }
 
@@ -97,7 +100,8 @@ impl App {
                     self.dmc_tracker_server.as_str(),
                     dmc_account.as_ref().unwrap().as_str(),
                     self.get_http_domain().await?,
-                    dmc_sender)?;
+                    dmc_sender,
+                    self.challenge_check_interval)?;
                 self.set_miner_dec_id().await?;
 
                 let miner = Arc::new(DmcDsgMiner::new(
