@@ -380,11 +380,18 @@ impl<CLIENT: CyfsClient,
 
         #[cfg(not(feature = "no_dmc"))]
         spawn( async move {
+            let mut check_interval = 1800;
             loop {
                 if let Err(e) = this.check_contract_end().await {
                     error!("check out time err: {}", e);
+                    check_interval = check_interval * 2;
+                    if check_interval > 3600 * 6 {
+                        check_interval = 3600 * 6;
+                    }
+                } else {
+                    check_interval = 1800;
                 }
-                sleep(Duration::from_secs(600)).await;
+                sleep(Duration::from_secs(check_interval)).await;
             }
         });
     }
