@@ -54,7 +54,7 @@ async fn main() {
         .start();
 
     let mut builder = ConfigBuilder::<DefaultState>::default();
-    builder = builder.set_default("dmc_server", "http://154.22.122.40:8870").unwrap();
+    builder = builder.set_default("dmc_server", "http://18.188.82.206:8870").unwrap();
     builder = builder.set_default("dmc_tracker_server", "http://18.117.247.238:8088").unwrap();
 
     let data_dir = get_app_data_dir(DMCDsgConfig::APP_NAME);
