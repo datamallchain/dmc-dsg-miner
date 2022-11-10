@@ -231,7 +231,8 @@ impl<
                     return Ok(false);
                 }
                 let cyfs_info = self.dmc_client.get_cyfs_info(order.as_ref().unwrap().user.clone()).await?;
-                if cyfs_info.addr == source.to_string() {
+                let source_device: Device = self.stack.get_object(Some(source.clone()), source.clone()).await?;
+                if cyfs_info.addr == source.to_string() || cyfs_info.addr == source_device.desc().owner().as_ref().unwrap().to_string() {
                     return Ok(true)
                 } else {
                     log::info!("address unmatch {} expect {}", source.to_string(), cyfs_info.addr.as_str());
