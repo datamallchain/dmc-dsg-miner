@@ -40,8 +40,7 @@ impl FileDownloader for CyfsStackFileDownloader {
         };
         app_call_log!("download chunks {:?}", chunk_ref);
         let chunk_bundle = ChunkBundle::new(chunk_list, ChunkBundleHashMethod::Serial);
-        let owner_id = self.stack.local_device().desc().owner().clone().unwrap();
-        let file = File::new(owner_id, chunk_bundle.len(), chunk_bundle.calc_hash_value(), ChunkList::ChunkInBundle(chunk_bundle)).no_create_time().build();
+        let file = File::new(ObjectId::default(), chunk_bundle.len(), chunk_bundle.calc_hash_value(), ChunkList::ChunkInBundle(chunk_bundle)).no_create_time().build();
         let file_id = self.stack.put_object_to_noc(&file, None).await?;
         let mut is_timeout = false;
 

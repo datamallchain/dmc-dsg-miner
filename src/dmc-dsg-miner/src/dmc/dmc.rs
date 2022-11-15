@@ -118,6 +118,7 @@ impl<
                 let witness = contract_ref.witness();
                 let chunk_size = witness.chunk_size.unwrap_or(CHUNK_SIZE as u32);
                 let challenge_ret = self.dmc_client.get_challenge_info(contract.desc().content().witness.order_id.as_str(), None).await?;
+                log::debug!("challenge ret {}", serde_json::to_string(&challenge_ret).unwrap());
                 if challenge_ret.rows.len() == 0 {
                     continue;
                 }
@@ -129,7 +130,8 @@ impl<
                         state.get(challenge.order_id.as_str()).map(|state| state.clone())
                     };
                     let contract_info = conn.get_contract_info(contract_id).await?;
-                    let meta_max_id = contract_info.meta_merkle.len() as u64 * chunk_size as u64 / DSG_CHUNK_PIECE_SIZE;
+                    // let meta_max_id = contract_info.meta_merkle.len() as u64 * chunk_size as u64 / DSG_CHUNK_PIECE_SIZE;
+                    let meta_max_id = 0;
                     if state.is_none() {
                         let data = if challenge.data_id < meta_max_id {
                             let meta_data = conn.get_contract_meta_data(contract_id).await?;
@@ -213,7 +215,7 @@ impl<
         Ok(merkle_tree)
     }
 
-    pub async fn check_contract(&self, source: &ObjectId, contract: &DsgContractObject<DMCContractData>) -> BuckyResult<bool> {
+    pub async fn check_contract(&self, source: &ObjectId, contract: &DsgContractObject<DMCContractData>, data_size: u64) -> BuckyResult<bool> {
         let dmc_data = &contract.desc().content().witness;
         if dmc_data.merkle_root.is_some() {
             log::info!("recv contract dmc_order {} merkle_root {}", dmc_data.order_id.as_str(), dmc_data.merkle_root.as_ref().unwrap().to_string());
@@ -228,6 +230,10 @@ impl<
             if order.is_some() {
                 if order.as_ref().unwrap().miner.as_str() != self.dmc_client.get_account_name() {
                     log::info!("miner account unmatch {} expect {}", order.as_ref().unwrap().miner.as_str(), self.dmc_client.get_account_name());
+                    return Ok(false);
+                }
+                if order.as_ref().unwrap().get_space()? < data_size {
+                    log::info!("no enough space. has {}.need {}", order.as_ref().unwrap().get_space()?, data_size);
                     return Ok(false);
                 }
                 let cyfs_info = self.dmc_client.get_cyfs_info(order.as_ref().unwrap().user.clone()).await?;
@@ -268,8 +274,8 @@ impl<
                 return Ok(());
             }
 
-            if info.state != DMCChallengeState::ChallengePrepare as u32 {
-                return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "order {} state is {}, expect ChallengePrepare", dmc_data.order_id.as_str(), info.state));
+            if info.state != DMCChallengeState::ChallengePrepare as u32 && info.state != DMCChallengeState::ChallengeConsistent as u32 {
+                return Err(app_err!(DMC_DSG_ERROR_MERKLE_ROOT_VERIFY_FAILED, "order {} state is {}, expect ChallengePrepare or ChallengeConsistent", dmc_data.order_id.as_str(), info.state));
             }
 
             if info.pre_merkle_root != merkle_root.to_string() || info.pre_data_block_count != piece_count {

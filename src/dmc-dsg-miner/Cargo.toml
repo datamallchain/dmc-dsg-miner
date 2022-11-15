@@ -55,6 +55,7 @@ async-h1 = "2.3.3"
 generic-array = "0.12"
 memmap2 = "0.5.5"
 config = "0.13.1"
+tracing = { version = "0.1", features = ["log-always"]}
 
 prost = {version = "0.9"}
 

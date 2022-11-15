@@ -109,6 +109,7 @@ pub trait ContractChunkStore: Send + Sync + 'static {
     async fn get_chunk(&self, chunk_id: &ChunkId) -> BuckyResult<Box<dyn Chunk>>;
     async fn get_chunk_by_range(&self, chunk_id: &ChunkId, range: Range<u64>) -> BuckyResult<Vec<u8>>;
     async fn get_chunk_reader(&self, chunk_id: &ChunkId) -> BuckyResult<Box<dyn Unpin + Read + Send + Sync>>;
+    #[tracing::instrument(skip(self), err)]
     async fn get_contract_data(&self, chunk_list: Vec<ChunkId>, range: Range<u64>, chunk_size: u32) -> BuckyResult<Vec<u8>> {
         let start = range.start / chunk_size as u64;
         let mut end = range.end / chunk_size as u64 + 1;
@@ -135,12 +136,12 @@ pub trait ContractChunkStore: Send + Sync + 'static {
                     data.append(&mut buf);
                 }
             } else if csize < chunk_size as u64 {
-                if csize - cpos > read_len {
+                if csize > cpos && csize - cpos >= read_len {
                     let mut buf = self.get_chunk_by_range(chunk_id, cpos..cpos+read_len).await?;
                     read_len -= buf.len() as u64;
-                    cpos += 0;
+                    cpos = 0;
                     data.append(&mut buf);
-                } else {
+                } else if csize > cpos && csize - cpos < read_len {
                     let mut buf = self.get_chunk_by_range(chunk_id, cpos..csize).await?;
                     read_len -= buf.len() as u64;
                     cpos += buf.len() as u64;
@@ -155,10 +156,23 @@ pub trait ContractChunkStore: Send + Sync + 'static {
                             padding.resize(read_len as usize, 0);
                             padding
                         };
-                        read_len -= buf.len() as u64;
-                        cpos += 0;
+                        read_len -= padding.len() as u64;
+                        cpos = 0;
                         data.append(&mut padding);
                     }
+                } else {
+                    let mut padding = if read_len > chunk_size as u64 - cpos {
+                        let mut padding = Vec::<u8>::new();
+                        padding.resize(chunk_size as usize - cpos as usize, 0);
+                        padding
+                    } else {
+                        let mut padding = Vec::<u8>::new();
+                        padding.resize(read_len as usize, 0);
+                        padding
+                    };
+                    read_len -= padding.len() as u64;
+                    cpos = 0;
+                    data.append(&mut padding);
                 }
             } else {
                 let msg = format!("chunk {} len {} big than {}", chunk_id.to_string(), csize, chunk_size);

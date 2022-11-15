@@ -44,7 +44,9 @@ async fn main() -> Result<()> {
 
     let dec_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), DMCDsgConfig::PRODUCT_NAME);
     log::info!("----> dec_id: {}", &dec_id);
-    let stack = Arc::new(SharedCyfsStack::open_default(Some(dec_id.clone())).await.unwrap());
+    let mut stack_params = SharedCyfsStackParam::default(Some(dec_id.clone()));
+    // stack_params.requestor_config = CyfsStackRequestorConfig::ws();
+    let stack = Arc::new(SharedCyfsStack::open(stack_params).await.unwrap());
     stack.wait_online(None).await.unwrap();
 
     let meta_store = CyfsStackMetaStore::create(stack.clone()).await.unwrap();

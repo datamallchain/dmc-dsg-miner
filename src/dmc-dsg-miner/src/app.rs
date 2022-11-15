@@ -102,7 +102,14 @@ impl App {
                     self.get_http_domain().await?,
                     dmc_sender,
                     self.challenge_check_interval)?;
-                self.set_miner_dec_id().await?;
+                loop {
+                    if let Err(e) = self.set_miner_dec_id().await {
+                        log::error!("set_miner_dec_id err {}", e);
+                        async_std::task::sleep(Duration::from_secs(5)).await;
+                        continue;
+                    }
+                    break;
+                }
 
                 let miner = Arc::new(DmcDsgMiner::new(
                     self.stack.clone(),

@@ -85,14 +85,21 @@ impl<CLIENT: CyfsClient,
             let contract_ref = DsgContractObjectRef::from(&contract);
             log::info!("recv contract {}", contract_ref)
         }
-        if !self.dmc.check_contract(owner_id, &contract).await? {
-            return Err(BuckyError::new(BuckyErrorCode::InvalidData, "check contract failed"));
-        }
-        let mut conn = self.meta_store.create_meta_connection().await?;
         let state: DsgContractStateObject = self.client.get_object(Some(owner_id.clone()), state_id.clone()).await?;
-
         let state_ref = DsgContractStateObjectRef::from(&state);
         if let DsgContractState::DataSourceChanged(changed) = state_ref.state() {
+            let mut conn = self.meta_store.create_meta_connection().await?;
+            let mut cur_chunk_list = conn.get_chunk_list(contract_id).await?;
+            cur_chunk_list.append(&mut changed.chunks.clone());
+            let mut data_size = 0;
+            for chunk_id in cur_chunk_list.iter() {
+                data_size += chunk_id.len();
+            }
+
+            if !self.dmc.check_contract(owner_id, &contract, data_size as u64).await? {
+                return Err(BuckyError::new(BuckyErrorCode::InvalidData, "check contract failed"));
+            }
+
             let contract_info = if is_saved {
                 let mut contract_info = conn.get_contract_info(contract_id).await?;
                 if contract_info.contract_status != ContractStatus::Storing {
@@ -163,8 +170,8 @@ impl<CLIENT: CyfsClient,
         Ok(HashValue::from(merkle_tree.root()))
     }
 
+    #[tracing::instrument(skip(self), err)]
     async fn sync_contract_data_proc(&self, contract_id: ObjectId) -> BuckyResult<()> {
-        app_call_log!("sync contract: {}", &contract_id);
         let mut conn = self.meta_store.create_meta_connection().await?;
         let contract_info = conn.get_contract_info(&contract_id).await?;
         if contract_info.contract_status != ContractStatus::Syncing {
@@ -396,8 +403,8 @@ impl<CLIENT: CyfsClient,
         });
     }
 
+    #[tracing::instrument(skip(self), err)]
     async fn resp_contract_proof(&self, contract_id: ObjectId) -> BuckyResult<()> {
-        app_call_log!("start proof contract: {}", &contract_id);
         let mut conn = self.meta_store.create_meta_connection_named_locked(Self::get_contract_lock_name(&contract_id)).await?;
         if let Some(challenge) = conn.get_challenge(&contract_id).await? {
             let challenge_ref = DsgChallengeObjectRef::from(&challenge);
@@ -515,6 +522,7 @@ impl<CLIENT: CyfsClient,
         });
     }
 
+    #[tracing::instrument(skip(self), err, ret, level = "debug")]
     pub async fn need_sync_chunk(&self, contract_id: &ObjectId, state_id: &ObjectId) -> BuckyResult<bool> {
         let mut conn = self.meta_store.create_meta_connection().await?;
         let contract = conn.get_contract(contract_id).await?;
@@ -552,6 +560,7 @@ impl<CLIENT: CyfsClient,
         }
     }
 
+    #[tracing::instrument(skip(self, challenge), err, level = "debug")]
     pub async fn on_challenge(&self, challenge: DsgChallengeObject, source: ObjectId) -> BuckyResult<()> {
         let challenge_ref = DsgChallengeObjectRef::from(&challenge);
         let contract_id = challenge_ref.contract_id();
