@@ -605,7 +605,7 @@ impl ContractMetaStore for CyfsStackMetaConnection {
     async fn save_need_sync_contract_state(&mut self, contract_id: &ObjectId, state: &DsgContractStateObject) -> BuckyResult<()> {
         let state_ref = DsgContractStateObjectRef::from(state);
         let state_id = state_ref.id();
-        self.save_by_path(format!("/miner/contracts/{}/", contract_id), "syncing_state", Some(&state_id), Some(state), None).await?;
+        self.save_by_path::<DsgContractStateObject>(format!("/miner/contracts/{}/", contract_id), "syncing_state", Some(&state_id), None, None).await?;
         self.op_env.insert(format!("/miner/contracts/{}/states", contract_id), &state_id).await?;
 
         Ok(())

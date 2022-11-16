@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use cyfs_base::*;
 use cyfs_core::{DecApp, DecAppObj};
-use cyfs_dsg_client::DsgContractObject;
+use cyfs_dsg_client::{DsgContractObject, DsgContractObjectRef, DsgContractState, DsgContractStateObjectRef};
 use cyfs_lib::SharedCyfsStack;
-use dmc_dsg_base::{Setting, SettingRef, DMCDsgConfig, CyfsPath, JSONObject, DSGJSON, CyfsClient};
+use dmc_dsg_base::{Setting, SettingRef, DMCDsgConfig, CyfsPath, JSONObject, DSGJSON, CyfsClient, CyfsNOC};
 use crate::{ContractMetaStore, CyfsStackFileDownloader, CyfsStackMetaStore, DMC, DMCContractData, DmcDsgMiner, MetaStore, NocChunkStore, OodMiner, RemoteDMCTxSender, RemoteProtocol};
 
 pub struct App {
@@ -69,6 +69,19 @@ impl App {
                 continue;
             }
             conn.save_state(state.as_ref().unwrap()).await?;
+            let mut cur_state = state.unwrap();
+            loop {
+                let state_ref = DsgContractStateObjectRef::from(&cur_state);
+                if let DsgContractState::DataSourceChanged(changed) = state_ref.state() {
+                    if changed.prev_change.is_none() {
+                        break;
+                    }
+                    cur_state = self.stack.get_object_from_noc(changed.prev_change.unwrap()).await?;
+                    self.stack.put_object_to_noc(&cur_state, Some(AccessString::full())).await?;
+                } else {
+                    break;
+                }
+            }
         }
         conn.commit().await?;
         Ok(())
@@ -81,10 +94,10 @@ impl App {
             }
         }
 
-        let mut has_set_object_access = self.chunk_meta.get_setting("has_set_object_access", "0").await?;
+        let mut has_set_object_access = self.chunk_meta.get_setting("has_set_obj_access", "0").await?;
         if has_set_object_access == "0".to_string() {
             self.set_object_access().await?;
-            self.chunk_meta.set_setting("has_set_object_access".to_string(), "1".to_string()).await?;
+            self.chunk_meta.set_setting("has_set_obj_access".to_string(), "1".to_string()).await?;
         }
 
         loop {
