@@ -606,7 +606,6 @@ impl ContractMetaStore for CyfsStackMetaConnection {
         let state_ref = DsgContractStateObjectRef::from(state);
         let state_id = state_ref.id();
         self.save_by_path::<DsgContractStateObject>(format!("/miner/contracts/{}/", contract_id), "syncing_state", Some(&state_id), None, None).await?;
-        self.op_env.insert(format!("/miner/contracts/{}/states", contract_id), &state_id).await?;
 
         Ok(())
     }
@@ -640,8 +639,23 @@ impl ContractMetaStore for CyfsStackMetaConnection {
 
     async fn save_state(&mut self, state: &DsgContractStateObject) -> BuckyResult<()> {
         let state_ref = DsgContractStateObjectRef::from(state);
+        let state_id = state_ref.id();
         self.stack.put_object_to_noc(state, Some(AccessString::full())).await?;
-        self.op_env.insert("/miner/states/", &state_ref.id()).await?;
+        self.op_env.insert(format!("/miner/contracts/{}/states", state_ref.contract_id().to_string()), &state_id).await?;
+
+        if let DsgContractState::DataSourceChanged(change) = state_ref.state() {
+            let chunk_bundle = ChunkBundle::new(change.chunks, ChunkBundleHashMethod::Serial);
+            let file = File::new(
+                ObjectId::default(),
+                chunk_bundle.len(),
+                chunk_bundle.calc_hash_value(),
+                ChunkList::ChunkInBundle(chunk_bundle)
+            ).no_create_time().build();
+            let file_id = self.stack.put_object_to_noc(&file, Some(AccessString::full())).await?;
+            let path = format!("/miner/contracts/{}/files", state_ref.contract_id().to_string());
+            self.op_env.insert(path.as_str(), &file_id).await?;
+        }
+
         Ok(())
     }
 

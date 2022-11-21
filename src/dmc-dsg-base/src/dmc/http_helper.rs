@@ -7,10 +7,6 @@ use crate::app_msg;
 pub async fn http_get_request(url: &str) -> BuckyResult<Vec<u8>> {
     let url_obj = Url::parse(url).unwrap();
     let host = url_obj.host().unwrap().to_string();
-    let mut port = 80;
-    if url_obj.port().is_some() {
-        port = url_obj.port().unwrap();
-    }
     let req = Request::new(Method::Get, url_obj);
     let mut resp = surf::client().send(req).await.map_err(|err| {
         let msg = app_msg!("http connect error! host={}, err={}", host, err);
@@ -28,10 +24,6 @@ pub async fn http_get_request(url: &str) -> BuckyResult<Vec<u8>> {
 pub async fn http_post_request(url: &str, param: &[u8], content_type: Option<&str>) -> BuckyResult<Vec<u8>> {
     let url_obj = Url::parse(url).unwrap();
     let host = url_obj.host().unwrap().to_string();
-    let mut port = 80;
-    if url_obj.port().is_some() {
-        port = url_obj.port().unwrap();
-    }
     let mut req = Request::new(Method::Post, url_obj);
     if content_type.is_some() {
         req.set_content_type(Mime::from(content_type.unwrap()));
@@ -53,10 +45,6 @@ pub async fn http_post_request(url: &str, param: &[u8], content_type: Option<&st
 pub async fn http_post_request3<T: for<'de> Deserialize<'de>>(url: &str, param: &[u8], content_type: Option<&str>) -> BuckyResult<T> {
     let url_obj = Url::parse(url).unwrap();
     let host = url_obj.host().unwrap().to_string();
-    let mut port = 80;
-    if url_obj.port().is_some() {
-        port = url_obj.port().unwrap();
-    }
     let mut req = Request::new(Method::Post, url_obj);
     if content_type.is_some() {
         req.set_content_type(Mime::from(content_type.unwrap()));
@@ -78,10 +66,6 @@ pub async fn http_post_request3<T: for<'de> Deserialize<'de>>(url: &str, param: 
 pub async fn http_post_json(url: &str, param: json::JsonValue) -> BuckyResult<json::JsonValue> {
     let url_obj = Url::parse(url).unwrap();
     let host = url_obj.host().unwrap().to_string();
-    let mut port = 80;
-    if url_obj.port().is_some() {
-        port = url_obj.port().unwrap();
-    }
 
     let mut req = Request::new(Method::Post, url_obj);
     req.set_content_type(Mime::from("application/json"));
@@ -109,10 +93,6 @@ pub async fn http_post_json(url: &str, param: json::JsonValue) -> BuckyResult<js
 pub async fn http_post_json2<T: for<'de> Deserialize<'de>>(url: &str, param: json::JsonValue) -> BuckyResult<T> {
     let url_obj = Url::parse(url).unwrap();
     let host = url_obj.host().unwrap().to_string();
-    let mut port = 80;
-    if url_obj.port().is_some() {
-        port = url_obj.port().unwrap();
-    }
     let mut req = Request::new(Method::Post, url_obj);
     req.set_content_type(Mime::from("application/json"));
     req.set_body(param.to_string());

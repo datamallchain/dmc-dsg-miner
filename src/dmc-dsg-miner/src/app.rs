@@ -3,10 +3,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use cyfs_base::*;
 use cyfs_core::{DecApp, DecAppObj};
-use cyfs_dsg_client::{DsgContractObject, DsgContractObjectRef, DsgContractState, DsgContractStateObjectRef};
+use cyfs_dsg_client::{DsgContractState, DsgContractStateObjectRef};
 use cyfs_lib::SharedCyfsStack;
 use dmc_dsg_base::{Setting, SettingRef, DMCDsgConfig, CyfsPath, JSONObject, DSGJSON, CyfsClient, CyfsNOC};
-use crate::{ContractMetaStore, CyfsStackFileDownloader, CyfsStackMetaStore, DMC, DMCContractData, DmcDsgMiner, MetaStore, NocChunkStore, OodMiner, RemoteDMCTxSender, RemoteProtocol};
+use crate::{ContractMetaStore, CyfsStackFileDownloader, CyfsStackMetaStore, DMC, DmcDsgMiner, MetaStore, NocChunkStore, OodMiner, RemoteDMCTxSender, RemoteProtocol};
 
 pub struct App {
     setting: SettingRef,
@@ -77,7 +77,7 @@ impl App {
                         break;
                     }
                     cur_state = self.stack.get_object_from_noc(changed.prev_change.unwrap()).await?;
-                    self.stack.put_object_to_noc(&cur_state, Some(AccessString::full())).await?;
+                    conn.save_state(&cur_state).await?;
                 } else {
                     break;
                 }
@@ -94,10 +94,10 @@ impl App {
             }
         }
 
-        let mut has_set_object_access = self.chunk_meta.get_setting("has_set_obj_access", "0").await?;
-        if has_set_object_access == "0".to_string() {
+        let has_changed_obj_access = self.chunk_meta.get_setting("has_changed_obj_access", "0").await?;
+        if has_changed_obj_access == "0".to_string() {
             self.set_object_access().await?;
-            self.chunk_meta.set_setting("has_set_obj_access".to_string(), "1".to_string()).await?;
+            self.chunk_meta.set_setting("has_changed_obj_access".to_string(), "1".to_string()).await?;
         }
 
         loop {

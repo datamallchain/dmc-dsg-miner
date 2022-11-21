@@ -864,7 +864,7 @@ impl<T: DMCTxSender> DMCClient<T> {
         self.account_name.as_str()
     }
 
-    pub async fn get_user_orders(&self, limit: Option<i32>) -> BuckyResult<Vec<TrackerDMCOrder>> {
+    pub async fn get_user_orders(&self, _limit: Option<i32>) -> BuckyResult<Vec<TrackerDMCOrder>> {
         let query = format!(r#"{{find_dmc_order(
                                     skip: 0,
                                     limit: 10,

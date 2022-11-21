@@ -910,11 +910,11 @@ pub fn date_to_time_point(date: &str) -> BuckyResult<i64> {
 }
 
 pub fn time_point_to_date(us: i64) -> String {
-    Utc.timestamp_millis(us).to_rfc3339_opts(SecondsFormat::Secs, true).trim_end_matches("Z").to_string()
+    Utc.timestamp_millis_opt(us).unwrap().to_rfc3339_opts(SecondsFormat::Secs, true).trim_end_matches("Z").to_string()
 }
 
 pub fn time_point_sec_to_date(sec: i64) -> String {
-    Utc.timestamp(sec, 0).to_rfc3339_opts(SecondsFormat::Secs, true).trim_end_matches("Z").to_string()
+    Utc.timestamp_opt(sec, 0).unwrap().to_rfc3339_opts(SecondsFormat::Secs, true).trim_end_matches("Z").to_string()
 }
 
 pub fn date_to_block_timestamp(date: &str) -> BuckyResult<i64> {
@@ -925,6 +925,6 @@ pub fn date_to_block_timestamp(date: &str) -> BuckyResult<i64> {
 }
 
 pub fn block_timestamp_to_date(slot: i64) -> String {
-    let time: String = Utc.timestamp_millis(slot * 500 + 946684800000).to_rfc3339_opts(SecondsFormat::Secs, true);
+    let time: String = Utc.timestamp_millis_opt(slot * 500 + 946684800000).unwrap().to_rfc3339_opts(SecondsFormat::Secs, true);
     time.trim_end_matches("Z").to_string()
 }

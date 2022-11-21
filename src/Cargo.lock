@@ -1349,7 +1349,7 @@ dependencies = [
  "cyfs-chunk-lib",
  "cyfs-core",
  "cyfs-debug",
- "cyfs-lib",
+ "cyfs-lib 0.6.6",
  "cyfs-util",
  "generic-array 0.12.4",
  "log",
@@ -1380,6 +1380,42 @@ name = "cyfs-lib"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9eb9bf39c876cd30f879a95853ace015827b35a961bbabd23f2d0879647ae96"
+dependencies = [
+ "async-h1",
+ "async-std",
+ "async-trait",
+ "async-tungstenite",
+ "bytes 1.2.1",
+ "chrono",
+ "cyfs-base",
+ "cyfs-bdt",
+ "cyfs-core",
+ "cyfs-debug",
+ "cyfs-util",
+ "futures",
+ "futures-util",
+ "globset",
+ "hex",
+ "http-range",
+ "http-types",
+ "int-enum",
+ "lazy_static",
+ "log",
+ "lru_time_cache",
+ "once_cell",
+ "percent-encoding",
+ "protobuf",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "tide",
+]
+
+[[package]]
+name = "cyfs-lib"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ea8370aba0d782c95bfde72a23766ddf8bb01741d2eb4b34b1ad7977edff290"
 dependencies = [
  "async-h1",
  "async-std",
@@ -1599,7 +1635,7 @@ dependencies = [
  "chrono",
  "cyfs-base",
  "cyfs-chunk-lib",
- "cyfs-lib",
+ "cyfs-lib 0.7.0",
  "cyfs-util",
  "flate2",
  "futures",
@@ -1645,7 +1681,7 @@ dependencies = [
  "cyfs-core",
  "cyfs-debug",
  "cyfs-dsg-client",
- "cyfs-lib",
+ "cyfs-lib 0.7.0",
  "cyfs-task-manager",
  "cyfs-util",
  "dmc-dsg-base",
@@ -1690,7 +1726,7 @@ dependencies = [
  "cyfs-chunk-lib",
  "cyfs-core",
  "cyfs-debug",
- "cyfs-lib",
+ "cyfs-lib 0.7.0",
  "cyfs-util",
  "dirs",
  "dmc-dsg-base",
