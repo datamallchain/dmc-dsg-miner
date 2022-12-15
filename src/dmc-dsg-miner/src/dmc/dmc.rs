@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use cyfs_base::*;
 use cyfs_chunk_lib::{Chunk, CHUNK_SIZE, MemChunk};
 use cyfs_dsg_client::{DsgContractObject, DsgContractObjectRef};
@@ -41,6 +40,7 @@ pub struct DMC<
     contract_store: Arc<dyn MetaStore<CONN>>,
     raw_data_store: Arc<CHUNKSTORE>,
     challenge_state: Mutex<HashMap<String, ChallengeState>>,
+    dmc_account: String,
     _marker: PhantomData<CONN>,
 }
 pub type DMCRef<STACK, CONN, CHUNKSTORE, DMCTXSENDER> = Arc<DMC<STACK, CONN, CHUNKSTORE, DMCTXSENDER>>;
@@ -71,6 +71,7 @@ impl<
             contract_store,
             raw_data_store,
             challenge_state: Mutex::new(Default::default()),
+            dmc_account: dmc_account.to_string(),
             _marker: Default::default(),
         });
 
@@ -291,5 +292,9 @@ impl<
 
     pub async fn get_order(&self, order_id: &str) -> BuckyResult<Option<TrackerDMCOrder>> {
         self.dmc_client.get_order_by_id(order_id).await
+    }
+
+    pub async fn get_bill_list(&self) -> BuckyResult<Vec<BillRecord>> {
+        self.dmc_client.get_bill_list(self.dmc_account.as_str(), Some(i32::MAX)).await
     }
 }

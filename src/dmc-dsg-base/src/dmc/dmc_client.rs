@@ -354,6 +354,13 @@ pub struct Pledge {
     pub contract: String,
 }
 
+impl Pledge {
+    pub fn get_quantity(&self) -> String {
+        let list: Vec<_> = self.quantity.split(" ").collect();
+        list[0].to_string()
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DMCOrder {
     pub order_id: String,
@@ -497,6 +504,44 @@ pub struct StakeInfo {
     pub miner_rate: String,
     pub total_weight: String,
     pub total_staked: Pledge
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct BillRecord {
+    pub primary: u64,
+    pub bill_id: String,
+    pub owner: String,
+    pub matched: Pledge,
+    pub unmatched: Pledge,
+    pub price: f64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+fn char_to_symbol(c: char) -> u8 {
+    if c >= 'a' && c <= 'z' {
+        (c as u8 - 'a' as u8 + 6) as u8
+    } else if c >= '1' && c <= '5' {
+        (c as u8 - '1' as u8 + 1) as u8
+    } else {
+        0
+    }
+}
+
+
+fn string_to_name(str_name: &str) -> String {
+    let mut value: u128 = 0;
+    for (i, c1) in str_name.chars().enumerate() {
+        let mut c = char_to_symbol(c1);
+        if i < 12 {
+            c &= 0x1f;
+            value += c as u128 * (2u128.pow(64 - 5 * (i as u32 + 1)));
+        } else {
+            c &= 0x0f;
+            value += c as u128;
+        }
+    }
+    format!("{}", value)
 }
 
 #[async_trait::async_trait]
@@ -1136,6 +1181,31 @@ impl<T: DMCTxSender> DMCClient<T> {
             Err(cyfs_err!(BuckyErrorCode::NotFound, "can't find pst info"))
         } else {
             Ok(resp.rows.pop().unwrap())
+        }
+    }
+
+    pub async fn get_bill_list(&self, dmc_account: &str, limit: Option<i32>) -> BuckyResult<Vec<BillRecord>> {
+        let scope = string_to_name(dmc_account);
+        let req = GetTableRowsReq {
+            json: true,
+            code: "eosio.token",
+            table: "stakerec",
+            scope: scope.as_str(),
+            index_position: None,
+            key_type: None,
+            encode_type: None,
+            lower_bound: None,
+            upper_bound: None,
+            limit,
+            reverse: None,
+            show_payer: None
+        };
+
+        let resp: GetTableRowsResult<BillRecord> = self.rpc.get_table_rows(&req).await?;
+        if resp.rows.len() == 0 {
+            Ok(Vec::new())
+        } else {
+            Ok(resp.rows)
         }
     }
 }

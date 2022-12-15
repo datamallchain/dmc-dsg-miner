@@ -17,6 +17,10 @@ pub struct ContractInfo {
     pub latest_check_time: u64,
     #[prost(bytes="vec", repeated, tag="3")]
     pub meta_merkle: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(uint64, optional, tag="4")]
+    pub stored_size: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag="5")]
+    pub sum_size: ::core::option::Option<u64>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MetaData {

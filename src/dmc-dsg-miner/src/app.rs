@@ -6,7 +6,7 @@ use cyfs_core::{DecApp, DecAppObj};
 use cyfs_dsg_client::{DsgContractState, DsgContractStateObjectRef};
 use cyfs_lib::SharedCyfsStack;
 use dmc_dsg_base::{Setting, SettingRef, DMCDsgConfig, CyfsPath, JSONObject, DSGJSON, CyfsClient, CyfsNOC};
-use crate::{ContractMetaStore, CyfsStackFileDownloader, CyfsStackMetaStore, DMC, DmcDsgMiner, MetaStore, NocChunkStore, OodMiner, RemoteDMCTxSender, RemoteProtocol};
+use crate::{ContractMetaStore, CyfsStackFileDownloader, CyfsStackMetaStore, DMC, DmcDsgMiner, MetaStore, MinerStat, NocChunkStore, OodMiner, RemoteDMCTxSender, RemoteProtocol};
 
 pub struct App {
     setting: SettingRef,
@@ -124,12 +124,12 @@ impl App {
                     break;
                 }
 
-                let miner = Arc::new(DmcDsgMiner::new(
+                let miner = DmcDsgMiner::new(
                     self.stack.clone(),
                     self.chunk_meta.clone(),
                     self.raw_data_store.clone(),
                     dmc.clone(),
-                    CyfsStackFileDownloader::new(self.stack.clone(), self.dec_id.clone())));
+                    CyfsStackFileDownloader::new(self.stack.clone(), self.dec_id.clone()));
                 miner.start_chunk_sync().await?;
                 miner.start_proof_resp().await;
                 miner.start_contract_end_check().await;
@@ -162,6 +162,21 @@ impl App {
                 log::error!("get dmc account error {}", e);
                 Ok(None)
             }
+        }
+    }
+
+    pub async fn get_stat(&self) -> BuckyResult<MinerStat> {
+        let miner = self.miner.lock().unwrap().clone();
+        if miner.is_none() {
+            Ok(MinerStat {
+                bill_count: 0,
+                order_count: 0,
+                billed_space: 0,
+                selled_space: 0,
+                used_space: 0,
+            })
+        } else {
+            miner.as_ref().unwrap().get_dmc_miner().get_dsg_stat().await
         }
     }
 

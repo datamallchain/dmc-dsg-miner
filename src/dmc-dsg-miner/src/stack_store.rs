@@ -508,7 +508,9 @@ impl ContractMetaStore for CyfsStackMetaConnection {
             Ok(ContractInfo {
                 contract_status,
                 latest_check_time,
-                meta_merkle: vec![]
+                meta_merkle: vec![],
+                stored_size: Some(0),
+                sum_size: None,
             })
         } else {
             let contract_info: ContractInfo = self.stack.get_object_from_noc::<RawObject>(info_id.unwrap()).await?.get()?;

@@ -189,4 +189,8 @@ impl OodMiner {
             &list
         )?))
     }
+
+    pub fn get_dmc_miner(&self) -> &Arc<Miner> {
+        &self.miner
+    }
 }

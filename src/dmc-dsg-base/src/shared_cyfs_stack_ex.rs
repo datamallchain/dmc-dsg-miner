@@ -77,14 +77,14 @@ impl SharedCyfsStackServer {
         *self_ep = Some(Arc::new(ep))
     }
 
-    pub async fn listen(self: &SharedCyfsStackServerRef) -> BuckyResult<()> {
+    pub async fn listen(self: &SharedCyfsStackServerRef, access: AccessString) -> BuckyResult<()> {
         let listener = OnPutHandle {
             stackex: SharedCyfsStackServerRef::downgrade(self)
         };
 
         self.stack.root_state_meta_stub(None, None).add_access(GlobalStatePathAccessItem {
             path: self.req_path.clone(),
-            access: GlobalStatePathGroupAccess::Default(AccessString::full().value())
+            access: GlobalStatePathGroupAccess::Default(access.value())
         }).await?;
 
         self.stack.router_handlers().add_handler(RouterHandlerChain::Handler,

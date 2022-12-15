@@ -9,6 +9,18 @@ use std::convert::{TryFrom, TryInto};
 use std::marker::PhantomData;
 use std::sync::Mutex;
 use cyfs_chunk_lib::CHUNK_SIZE;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct MinerStat {
+    pub bill_count: u32,
+    pub order_count: u64,
+    pub billed_space: u64,
+    pub selled_space: u64,
+    pub used_space: u64,
+}
+
+const STAT_LOCKER: &str = "stat_locker";
 
 pub struct DmcDsgMiner<
     CLIENT: CyfsClient,
@@ -35,8 +47,8 @@ impl<CLIENT: CyfsClient,
         meta_store: Arc<dyn MetaStore<CONN>>,
         raw_data_store: Arc<CHUNKSTORE>,
         dmc: DMCRef<CLIENT, CONN, CHUNKSTORE, DMCTXSENDER>,
-        downloader: DOWNLOADER) -> Self {
-        Self{
+        downloader: DOWNLOADER) -> Arc<Self> {
+        let miner = Arc::new(Self{
             client,
             meta_store,
             raw_data_store,
@@ -44,11 +56,85 @@ impl<CLIENT: CyfsClient,
             dmc,
             syncing_contracts: Mutex::new(Default::default()),
             _p: Default::default()
-        }
+        });
+
+        let tmp = miner.clone();
+        async_std::task::block_on(async move {
+            let has_stat = tmp.meta_store.get_setting("has_stat", "0").await.unwrap_or("0".to_string());
+            if has_stat == "0" {
+                if let Err(e) = tmp.refresh_used_stat().await {
+                    log::error!("refresh_used_stat err {}", e);
+                } else {
+                    let _ = tmp.meta_store.set_setting("has_stat".to_string(), "1".to_string()).await;
+                }
+            }
+        });
+
+        let tmp = miner.clone();
+        async_std::task::spawn(async move {
+            loop {
+                async_std::task::sleep(Duration::from_secs(7 * 24 * 3600)).await;
+                if let Err(e) = tmp.refresh_used_stat().await {
+                    log::error!("refresh_used_stat err {}", e);
+                }
+            }
+        });
+        miner
     }
 
     fn get_contract_lock_name(contract_id: &ObjectId) -> String {
         format!("miner_contract_{}", contract_id)
+    }
+
+    pub async fn refresh_used_stat(&self) -> BuckyResult<u64> {
+        let mut conn = self.meta_store.create_meta_connection().await?;
+        let contract_list = conn.contract_set().await?;
+
+        let mut used_space = 0;
+        for contract_id in contract_list.iter() {
+            let contract_info = conn.get_contract_info(contract_id).await?;
+            used_space += contract_info.stored_size.unwrap_or(0);
+        }
+
+        let _locker = Locker::get_locker(STAT_LOCKER.to_string()).await;
+        self.meta_store.set_setting("used_space".to_string(), used_space.to_string()).await?;
+        self.meta_store.set_setting("order_count".to_string(), contract_list.len().to_string()).await?;
+
+        Ok(used_space)
+    }
+
+    pub async fn get_dsg_stat(&self) -> BuckyResult<MinerStat> {
+        let (sum, selled_space, bill_count) = match self.dmc.get_bill_list().await {
+            Ok(list) => {
+                let mut sum = 0u64;
+                let mut selled_space = 0u64;
+                for bill in list.iter() {
+                    let matched = bill.matched.get_quantity().parse().unwrap_or(0);
+                    selled_space += matched;
+                    sum += matched;
+                    sum += bill.unmatched.get_quantity().parse().unwrap_or(0);
+                }
+                let bill_count = list.len() as u64;
+                let _ = self.meta_store.set_setting("bill_info".to_string(), serde_json::to_string(&(sum, selled_space, bill_count)).unwrap()).await;
+                (sum, selled_space, bill_count)
+            }
+            Err(_) => {
+                let bill_info = self.meta_store.get_setting("bill_info", "[0, 0, 0]").await.unwrap_or("[0, 0, 0]".to_string());
+                let (sum, selled_space, bill_count): (u64, u64, u64) = serde_json::from_str(bill_info.as_str()).unwrap_or((0, 0, 0));
+                (sum, selled_space, bill_count)
+            }
+        };
+
+        let used_space: u64 = self.meta_store.get_setting("used_space", "0").await?.parse().unwrap_or(0);
+        let order_count: u64 = self.meta_store.get_setting("order_count", "0").await?.parse().unwrap_or(0);
+
+        Ok(MinerStat {
+            bill_count: bill_count as u32,
+            order_count,
+            billed_space: sum,
+            selled_space,
+            used_space,
+        })
     }
 
     pub async fn challenge(&self, contract_id: &ObjectId, state_id: &ObjectId, challenge: &DsgChallengeObject, _owner_id: &ObjectId) -> BuckyResult<()> {
@@ -113,7 +199,9 @@ impl<CLIENT: CyfsClient,
                 ContractInfo {
                     contract_status: ContractStatus::Syncing,
                     latest_check_time: 0,
-                    meta_merkle: vec![]
+                    meta_merkle: vec![],
+                    stored_size: Some(0),
+                    sum_size: None,
                 }
             };
 
@@ -225,6 +313,7 @@ impl<CLIENT: CyfsClient,
                 DownloadParams { padding_len: contract_ref.witness().chunk_size.unwrap_or(CHUNK_SIZE as u32 )},
                 challenge_ref.expire_at()).await?;
 
+            let new_stored_size: usize = change.chunks.iter().map(|v| v.len()).sum();
             let mut conn = self.meta_store.create_meta_connection_named_locked(Self::get_contract_lock_name(&contract_id)).await?;
             conn.begin().await?;
             let mut contract_info = conn.get_contract_info(&contract_id).await?;
@@ -286,7 +375,9 @@ impl<CLIENT: CyfsClient,
                     return Err(e);
                 }
             } else {
+                let sum: usize = cur_chunk_list.iter().map(|v| v.len()).sum();
                 conn.save_chunk_list(&contract_id, cur_chunk_list).await?;
+                contract_info.stored_size = Some(sum as u64);
                 contract_info.contract_status = ContractStatus::Storing;
                 conn.set_contract_info(&contract_id, &contract_info).await?;
                 conn.set_contract_state_sync_complete(&contract_id, &state_ref.id()).await?;
@@ -299,6 +390,18 @@ impl<CLIENT: CyfsClient,
                 }
             }
             conn.commit().await?;
+
+            {
+                let _locker = Locker::get_locker(STAT_LOCKER.to_string()).await;
+                let mut used_space: u64 = self.meta_store.get_setting("used_space", "0").await.unwrap_or("0".to_string()).parse().unwrap_or(0);
+                used_space += new_stored_size as u64;
+                let _ = self.meta_store.set_setting("used_space".to_string(), used_space.to_string()).await;
+                if change.prev_change.is_none() {
+                    let mut order_count: u64 = self.meta_store.get_setting("order_count", "0").await.unwrap_or("0".to_string()).parse().unwrap_or(0);
+                    order_count += 1;
+                    let _ = self.meta_store.set_setting("order_count".to_string(), order_count.to_string()).await;
+                }
+            }
         }
 
         Ok(())
@@ -366,6 +469,23 @@ impl<CLIENT: CyfsClient,
                             conn.chunk_ref_del(contract_id, &chunk_list).await?;
                             conn.contract_set_remove(&vec![contract_id.clone()]).await?;
                             conn.contract_proof_set_remove(&vec![contract_id.clone()]).await?;
+
+                            let stored_size: usize = chunk_list.iter().map(|v| v.len()).sum();
+                            {
+                                let _locker = Locker::get_locker(STAT_LOCKER.to_string()).await;
+                                let mut used_space: u64 = self.meta_store.get_setting("used_space", "0").await.unwrap_or("0".to_string()).parse().unwrap_or(0);
+                                if used_space >= stored_size as u64 {
+                                    used_space -= stored_size as u64;
+                                } else {
+                                    used_space = 0;
+                                }
+                                let _ = self.meta_store.set_setting("used_space".to_string(), used_space.to_string()).await;
+                                let mut order_count: u64 = self.meta_store.get_setting("order_count", "0").await.unwrap_or("0".to_string()).parse().unwrap_or(0);
+                                if order_count > 0 {
+                                    order_count -= 1;
+                                }
+                                let _ = self.meta_store.set_setting("order_count".to_string(), order_count.to_string()).await;
+                            }
                         } else {
                             contract_info.latest_check_time += 7*24*3600*1000000;
                         }

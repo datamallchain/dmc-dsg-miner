@@ -8,6 +8,8 @@ pub struct ContractInfo {
     pub contract_status: ContractStatus,
     pub latest_check_time: u64,
     pub meta_merkle: Vec<HashValue>,
+    pub stored_size: Option<u64>,
+    pub sum_size: Option<u64>
 }
 
 impl ProtobufTransform<crate::protos::ContractInfo> for ContractInfo {
@@ -15,7 +17,9 @@ impl ProtobufTransform<crate::protos::ContractInfo> for ContractInfo {
         Ok(Self {
             contract_status: ContractStatus::try_from(value.contract_status as i64)?,
             latest_check_time: value.latest_check_time,
-            meta_merkle: value.meta_merkle.iter().map(|v| HashValue::from(v.as_slice())).collect()
+            meta_merkle: value.meta_merkle.iter().map(|v| HashValue::from(v.as_slice())).collect(),
+            stored_size: value.stored_size,
+            sum_size: value.sum_size,
         })
     }
 }
@@ -26,7 +30,9 @@ impl ProtobufTransform<&ContractInfo> for crate::protos::ContractInfo {
         Ok(Self {
             contract_status: contract_status as u32,
             latest_check_time: value.latest_check_time,
-            meta_merkle: value.meta_merkle.iter().map(|v|v.as_slice().to_vec()).collect()
+            meta_merkle: value.meta_merkle.iter().map(|v|v.as_slice().to_vec()).collect(),
+            stored_size: value.stored_size.clone(),
+            sum_size: value.sum_size.clone()
         })
     }
 }

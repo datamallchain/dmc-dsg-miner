@@ -9,6 +9,8 @@ pub enum JsonProtocol {
     SetDMCAccountResp = 9,
     SetHttpDomain,
     SetHttpDomainResp,
+    GetStat = 12,
+    GetStatResp = 13,
 }
 
 #[derive(Serialize, Deserialize)]

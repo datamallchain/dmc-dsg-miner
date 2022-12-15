@@ -11,6 +11,8 @@ message ContractInfo {
     uint32 contract_status = 1;
     uint64 latest_check_time = 2;
     repeated bytes meta_merkle = 3;
+    optional uint64 stored_size = 4;
+    optional uint64 sum_size = 5;
 }
 
 message MetaData {

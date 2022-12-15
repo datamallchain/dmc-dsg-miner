@@ -49,29 +49,29 @@ impl SharedCyfsStackExEndpoint for DMCDsgServiceEndPoint {
 
 pub struct DMCDsgService {
     stack: SharedCyfsStackServerRef,
-    _dec_id: ObjectId,
+    dec_id: ObjectId,
     app: AppRef,
-    _owner_id: ObjectId,
+    owner_id: ObjectId,
 }
 pub type DMCDsgServiceRef = Arc<DMCDsgService>;
 
 impl DMCDsgService {
-    pub fn new(app: AppRef, _dec_id: ObjectId) -> DMCDsgServiceRef {
+    pub fn new(app: AppRef, dec_id: ObjectId) -> DMCDsgServiceRef {
         let ood_id = app.get_stack().local_device_id().object_id().clone();
-        let _owner_id = app.get_stack().local_device().desc().owner().as_ref().unwrap().clone();
+        let owner_id = app.get_stack().local_device().desc().owner().as_ref().unwrap().clone();
         let service_api_id = DecApp::generate_id(ObjectId::from_str(DMCDsgConfig::PUB_PEOPLE_ID).unwrap(), DMCDsgConfig::PRODUCT_NAME);
-        log::info!("device {}, dec {} service api id {}", &ood_id, &_dec_id, &service_api_id);
+        log::info!("device {}, dec {} service api id {}", &ood_id, &dec_id, &service_api_id);
 
-        let req_path = RequestGlobalStatePath::new(None, Some("commands")).format_string();
+        let req_path = RequestGlobalStatePath::new(None, Some("dsg_local_commands")).format_string();
 
         let stack = SharedCyfsStackServer::new("dmc-dsg-miner-service".to_string(),
                                                  app.get_stack().clone(),
                                                  req_path);
         DMCDsgServiceRef::new(Self {
             stack,
-            _dec_id,
+            dec_id,
             app,
-            _owner_id,
+            owner_id,
         })
     }
 
@@ -81,7 +81,9 @@ impl DMCDsgService {
             service: self.clone(),
         };
         self.stack.set_end_point(listener);
-        self.stack.listen().await?;
+        let mut access = AccessString::new(0);
+        access.set_group_permissions(AccessGroup::CurrentDevice, AccessPermissions::Full);
+        self.stack.listen(access).await?;
         Ok(())
     }
 
@@ -89,17 +91,21 @@ impl DMCDsgService {
         let req_type = req.get_json_obj_type();
         log::info!("recv json req {}", req_type);
 
-        // if req_type == JsonProtocol::GetDMCKey as u16 {
-        //     self.on_get_dmc_key(req.get()?).await
-        // } else if req_type == JsonProtocol::GetDMCAccount as u16 {
-        //     self.on_get_dmc_account().await
-        // } else if req_type == JsonProtocol::SetDMCAccount as u16 {
-        //     self.on_set_dmc_account(req.get()?).await
-        // } else if req_type == JsonProtocol::SetHttpDomain as u16 {
-        //     self.on_set_http_domain(req.get()?).await
-        // } else {
+        if req_type == JsonProtocol::GetStat as u16 {
+            self.on_get_stat().await
+        } else {
             Err(cyfs_err!(BuckyErrorCode::NotSupport, "req_type {}", req_type))
-        // }
+        }
+    }
+
+    async fn on_get_stat(&self) -> BuckyResult<Option<JSONObject>> {
+        let ret = self.app.get_stat().await?;
+            Ok(Some(JSONObject::new(
+                self.dec_id.clone(),
+                self.owner_id.clone(),
+                JsonProtocol::GetStatResp as u16,
+                &ret
+            )?))
     }
 
     // async fn on_get_dmc_key(&self, dmc_account: String) -> BuckyResult<Option<JSONObject>> {
