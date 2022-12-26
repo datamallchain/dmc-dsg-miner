@@ -2,11 +2,15 @@
   "name": "dmc-dsg-miner-sdk",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "watch": "tsc -w",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "cyfs-sdk": "^0.5.14"
+  },
+  "types": "dist/index.d.ts"
 }

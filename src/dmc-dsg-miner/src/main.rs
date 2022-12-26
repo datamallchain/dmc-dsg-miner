@@ -4,7 +4,7 @@ use cyfs_lib::*;
 use std::{sync::Arc};
 use std::str::FromStr;
 use cyfs_base::{BuckyResult, ObjectId};
-use cyfs_core::{DecApp, DecAppObj};
+use cyfs_core::{DecApp, DecAppObj, get_system_dec_app};
 use cyfs_util::get_app_data_dir;
 use cyfs_util::process::ProcessAction;
 use config::builder::DefaultState;
@@ -31,8 +31,8 @@ async fn main() -> Result<()> {
         .start();
 
     let mut builder = ConfigBuilder::<DefaultState>::default();
-    builder = builder.set_default("dmc_server", "http://18.188.82.206:8870").unwrap();
-    builder = builder.set_default("dmc_tracker_server", "http://18.117.247.238:8088").unwrap();
+    builder = builder.set_default("dmc_server", "http://explorer.dmctech.io").unwrap();
+    builder = builder.set_default("dmc_tracker_server", "http://tracker.dmctech.io").unwrap();
     builder = builder.set_default("challenge_check_interval", "1800").unwrap();
 
     let data_dir = get_app_data_dir(DMCDsgConfig::APP_NAME);
