@@ -89,7 +89,7 @@ impl<
                 } else {
                     check_interval = challenge_check_interval;
                 }
-                async_std::task::sleep(Duration::from_secs(check_interval)).await;
+                async_std::task::sleep(std::time::Duration::from_secs(check_interval)).await;
             }
         });
 
