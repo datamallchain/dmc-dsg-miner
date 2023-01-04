@@ -116,9 +116,14 @@ impl App {
                     dmc_sender,
                     self.challenge_check_interval)?;
                 loop {
+                    let mut index = 1;
                     if let Err(e) = self.set_miner_dec_id().await {
                         log::error!("set_miner_dec_id err {}", e);
-                        async_std::task::sleep(Duration::from_secs(5)).await;
+                        async_std::task::sleep(Duration::from_secs(5 * index)).await;
+                        index *= 2;
+                        if index > 720 {
+                            index = 720;
+                        }
                         continue;
                     }
                     break;
