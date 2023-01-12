@@ -65,11 +65,11 @@ impl App {
 
         let task: JoinHandle<BuckyResult<()>> = async_std::task::spawn(async move {
             let _ = dmc_client.unlink_auth("cyfsaddrinfo".to_string(), "bind".to_string(), "active".to_string()).await;
-            let _ = dmc_client.unlink_auth("eosio.token".to_string(), "addmerkle".to_string(), "active".to_string()).await;
-            let _ = dmc_client.unlink_auth("eosio.token".to_string(), "reqchallenge".to_string(), "active".to_string()).await;
-            let _ = dmc_client.unlink_auth("eosio.token".to_string(), "anschallenge".to_string(), "active".to_string()).await;
-            let _ = dmc_client.unlink_auth("eosio.token".to_string(), "arbitration".to_string(), "active".to_string()).await;
-            let _ = dmc_client.unlink_auth("eosio.token".to_string(), "paychallenge".to_string(), "active".to_string()).await;
+            let _ = dmc_client.unlink_auth("dmc.token".to_string(), "addmerkle".to_string(), "active".to_string()).await;
+            let _ = dmc_client.unlink_auth("dmc.token".to_string(), "reqchallenge".to_string(), "active".to_string()).await;
+            let _ = dmc_client.unlink_auth("dmc.token".to_string(), "anschallenge".to_string(), "active".to_string()).await;
+            let _ = dmc_client.unlink_auth("dmc.token".to_string(), "arbitration".to_string(), "active".to_string()).await;
+            let _ = dmc_client.unlink_auth("dmc.token".to_string(), "paychallenge".to_string(), "active".to_string()).await;
             let _ = dmc_client.delete_auth("light".to_string(), "active".to_string()).await;
 
             dmc_client.update_auth("light".to_string(), "active".to_string(), Authority {
@@ -82,11 +82,11 @@ impl App {
                 waits: vec![]}).await?;
 
             dmc_client.link_auth("cyfsaddrinfo".to_string(), "bind".to_string(), "active".to_string()).await?;
-            dmc_client.link_auth("eosio.token".to_string(), "addmerkle".to_string(), "active".to_string()).await?;
-            dmc_client.link_auth("eosio.token".to_string(), "reqchallenge".to_string(), "active".to_string()).await?;
-            dmc_client.link_auth("eosio.token".to_string(), "anschallenge".to_string(), "active".to_string()).await?;
-            dmc_client.link_auth("eosio.token".to_string(), "arbitration".to_string(), "active".to_string()).await?;
-            dmc_client.link_auth("eosio.token".to_string(), "paychallenge".to_string(), "active".to_string()).await?;
+            dmc_client.link_auth("dmc.token".to_string(), "addmerkle".to_string(), "active".to_string()).await?;
+            dmc_client.link_auth("dmc.token".to_string(), "reqchallenge".to_string(), "active".to_string()).await?;
+            dmc_client.link_auth("dmc.token".to_string(), "anschallenge".to_string(), "active".to_string()).await?;
+            dmc_client.link_auth("dmc.token".to_string(), "arbitration".to_string(), "active".to_string()).await?;
+            dmc_client.link_auth("dmc.token".to_string(), "paychallenge".to_string(), "active".to_string()).await?;
 
             println!("light key {}", light_private_key.to_legacy_string()?);
             Ok(())

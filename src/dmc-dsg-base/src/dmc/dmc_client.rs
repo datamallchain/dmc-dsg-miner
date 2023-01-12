@@ -619,7 +619,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
             auth
         };
         let trans = TransactionBuilder::new().add_action(
-            "eosio",
+            "dmc",
             "updateauth", vec![Authorization {
                 actor: self.account_name.clone(),
                 permission: parent }], params)?.build();
@@ -632,7 +632,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
             permission
         };
         let trans = TransactionBuilder::new().add_action(
-            "eosio",
+            "dmc",
             "deleteauth", vec![Authorization {
                 actor: self.account_name.clone(),
                 permission: parent_permission }], params)?.build();
@@ -647,7 +647,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
             requirement: "light".to_string()
         };
         let trans = TransactionBuilder::new().add_action(
-            "eosio",
+            "dmc",
             "linkauth", vec![Authorization {
                 actor: self.account_name.clone(),
                 permission }], params)?.build();
@@ -662,7 +662,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
         };
 
         let trans = TransactionBuilder::new().add_action(
-            "eosio",
+            "dmc",
             "unlinkauth", vec![Authorization {
                 actor: self.account_name.clone(),
                 permission}], params)?.build();
@@ -680,7 +680,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
         };
 
         let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
+            "dmc.token",
             "increase",
             vec![Authorization { actor: self.account_name.clone(), permission: "active".to_string() }],
             params)?.build();
@@ -711,7 +711,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
         };
 
         let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
+            "dmc.token",
             "bill",
             vec![Authorization { actor: self.account_name.clone(), permission: "active".to_string()}],
             params
@@ -741,7 +741,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
         };
 
         let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
+            "dmc.token",
             "mint",
             vec![Authorization {
                 actor: self.account_name.clone(),
@@ -776,7 +776,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
         };
 
         let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
+            "dmc.token",
             "addmerkle", vec![Authorization {
                 actor: self.account_name.clone(),
                 permission: "light".to_string() }], params)?.build();
@@ -801,7 +801,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
             nonce
         };
         let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
+            "dmc.token",
             "reqchallenge", vec![Authorization {
                 actor: self.account_name.clone(),
                 permission: "light".to_string() }], params)?.build();
@@ -822,7 +822,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
             reply_hash
         };
         let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
+            "dmc.token",
             "anschallenge", vec![Authorization {
                 actor: self.account_name.clone(),
                 permission: "light".to_string() }], params)?.build();
@@ -845,7 +845,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
             cut_merkle
         };
         let trans = TransactionBuilder::new().add_action(
-            "eosio.token",
+            "dmc.token",
             "arbitration", vec![Authorization {
                 actor: self.account_name.clone(),
                 permission: "light".to_string() }], params)?.build();
@@ -1066,9 +1066,9 @@ impl<T: DMCTxSender> DMCClient<T> {
     ) -> BuckyResult<GetTableRowsResult<DMCChallengeInfo>> {
         let req = GetTableRowsReq {
             json: true,
-            code: "eosio.token",
+            code: "dmc.token",
             table: "dmchallenge",
-            scope: "eosio.token",
+            scope: "dmc.token",
             index_position: None,
             key_type: None,
             encode_type: None,
@@ -1111,9 +1111,9 @@ impl<T: DMCTxSender> DMCClient<T> {
     pub async fn get_pst_trans_info(&self) -> BuckyResult<PstTransInfo> {
         let req = GetTableRowsReq {
             json: true,
-            code: "eosio.token",
+            code: "dmc.token",
             table: "priceavg",
-            scope: "eosio.token",
+            scope: "dmc.token",
             index_position: None,
             key_type: None,
             encode_type: None,
@@ -1135,9 +1135,9 @@ impl<T: DMCTxSender> DMCClient<T> {
     pub async fn get_pst_amount(&self, dmc_account: &str) -> BuckyResult<u64> {
         let req = GetTableRowsReq {
             json: true,
-            code: "eosio.token",
+            code: "dmc.token",
             table: "pststats",
-            scope: "eosio.token",
+            scope: "dmc.token",
             index_position: None,
             key_type: None,
             encode_type: None,
@@ -1163,9 +1163,9 @@ impl<T: DMCTxSender> DMCClient<T> {
     pub async fn get_stake_info(&self, dmc_account: &str) -> BuckyResult<StakeInfo> {
         let req = GetTableRowsReq {
             json: true,
-            code: "eosio.token",
+            code: "dmc.token",
             table: "dmcmaker",
-            scope: "eosio.token",
+            scope: "dmc.token",
             index_position: None,
             key_type: None,
             encode_type: None,
@@ -1188,7 +1188,7 @@ impl<T: DMCTxSender> DMCClient<T> {
         let scope = string_to_name(dmc_account);
         let req = GetTableRowsReq {
             json: true,
-            code: "eosio.token",
+            code: "dmc.token",
             table: "stakerec",
             scope: scope.as_str(),
             index_position: None,
