@@ -67,8 +67,8 @@ pub struct ActionTrace {
     pub block_num: i64,
     pub block_time: String,
     pub producer_block_id: Option<String>,
-    pub account_ram_deltas: Vec<AccountDelta>,
-    pub account_disk_deltas: Vec<AccountDelta>,
+    //pub account_ram_deltas: Vec<AccountDelta>,
+    //pub account_disk_deltas: Vec<AccountDelta>,
     pub error_code: Option<i64>,
     pub return_value_hex_data: Option<String>,
     pub inline_traces: Option<Vec<ActionTrace>>
