@@ -56,8 +56,13 @@ pub async fn http_post_request3<T: for<'de> Deserialize<'de>>(url: &str, param: 
         BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
     })?;
 
-    resp.body_json().await.map_err(|err| {
+    let tx = resp.body_string().await.map_err(|err| {
         let msg = app_msg!("recv body error! err={}", err);
+        log::error!("{}", msg.as_str());
+        BuckyError::new(BuckyErrorCode::ConnectFailed, msg)
+    })?;
+    serde_json::from_str(tx.as_str()).map_err(|err| {
+        let msg = app_msg!("recv {} error! err={}", tx, err);
         log::error!("{}", msg.as_str());
         BuckyError::new(BuckyErrorCode::InvalidData, msg)
     })

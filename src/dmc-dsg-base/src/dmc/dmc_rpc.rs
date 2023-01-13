@@ -487,7 +487,6 @@ pub struct GetTableRowsResult<T> {
     pub rows: Vec<T>,
     pub more: bool,
     pub next_key: String,
-    pub next_key_bytes: String,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -128,7 +128,7 @@ impl<
                 if challenge.state == DMCChallengeState::ChallengeRequest as u32 {
                     let state = {
                         let state = self.challenge_state.lock().unwrap();
-                        state.get(challenge.order_id.as_str()).map(|state| state.clone())
+                        state.get(challenge.order_id.to_string().as_str()).map(|state| state.clone())
                     };
                     let contract_info = conn.get_contract_info(contract_id).await?;
                     // let meta_max_id = contract_info.meta_merkle.len() as u64 * chunk_size as u64 / DSG_CHUNK_PIECE_SIZE;
@@ -152,7 +152,7 @@ impl<
                         let hash = hash_data(vec![data.as_slice(), challenge.nonce.as_bytes()].concat().as_slice());
                         self.dmc_client.add_challenge_resp(witness.order_id.as_str(), hash).await?;
                         let mut state = self.challenge_state.lock().unwrap();
-                        state.insert(challenge.order_id.clone(), ChallengeState::RespChallenge);
+                        state.insert(challenge.order_id.to_string().clone(), ChallengeState::RespChallenge);
                     } else if state.unwrap() == ChallengeState::RespChallenge {
                         let chunk_map = if challenge.data_id < meta_max_id {
                             let meta_data = conn.get_contract_meta_data(contract_id).await?.to_vec()?;
@@ -178,10 +178,10 @@ impl<
                             self.raw_data_store.clone(), chunk_list, chunk_size, chunk_map));
                         let mut merkle_tree = self.build_merkle_tree(reader, hash_list, chunk_size).await?;
                         let proof = merkle_tree.gen_proof(challenge.data_id).await?;
-                        self.dmc_client.arbitration(challenge.order_id.as_str(), proof.piece,
+                        self.dmc_client.arbitration(challenge.order_id.to_string().as_str(), proof.piece,
                                                     proof.path_list.iter().map(|item|  HashValue::from(item)).collect()).await?;
                         let mut state = self.challenge_state.lock().unwrap();
-                        state.insert(challenge.order_id.clone(), ChallengeState::Arbitration);
+                        state.insert(challenge.order_id.to_string().clone(), ChallengeState::Arbitration);
                     }
                 }
             }
@@ -229,15 +229,15 @@ impl<
             let order = self.dmc_client.get_order_by_id(dmc_data.order_id.as_str()).await?;
 
             if order.is_some() {
-                if order.as_ref().unwrap().miner.as_str() != self.dmc_client.get_account_name() {
-                    log::info!("miner account unmatch {} expect {}", order.as_ref().unwrap().miner.as_str(), self.dmc_client.get_account_name());
+                if order.as_ref().unwrap().miner.id.as_str() != self.dmc_client.get_account_name() {
+                    log::info!("miner account unmatch {} expect {}", order.as_ref().unwrap().miner.id.as_str(), self.dmc_client.get_account_name());
                     return Ok(false);
                 }
                 if order.as_ref().unwrap().get_space()? < data_size {
                     log::info!("no enough space. has {}.need {}", order.as_ref().unwrap().get_space()?, data_size);
                     return Ok(false);
                 }
-                let cyfs_info = self.dmc_client.get_cyfs_info(order.as_ref().unwrap().user.clone()).await?;
+                let cyfs_info = self.dmc_client.get_cyfs_info(order.as_ref().unwrap().user.id.clone()).await?;
                 let source_device: Device = self.stack.get_object(Some(source.clone()), source.clone()).await?;
                 if cyfs_info.addr == source.to_string() || cyfs_info.addr == source_device.desc().owner().as_ref().unwrap().to_string() {
                     return Ok(true)

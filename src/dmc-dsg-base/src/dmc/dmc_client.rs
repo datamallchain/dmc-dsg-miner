@@ -388,7 +388,7 @@ pub enum DMCOrderState {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DMCChallengeInfo {
-    pub order_id: String,
+    pub order_id: u64,
     pub pre_merkle_root: String,
     pub pre_data_block_count: u64,
     pub merkle_root: String,
@@ -421,30 +421,32 @@ pub struct PstStat {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct TrackerDMCUser {
+    pub id: String
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TrackerDMCBill {
+    pub id: String
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct TrackerDMCOrder {
-    pub order_id: String,
-    pub user: String,
-    pub miner: String,
-    pub bill_id: String,
-    pub user_pledge_amount: String,
-    pub user_pledge_symbol: String,
-    pub miner_pledge_amount: String,
-    pub miner_pledge_symbol: String,
-    pub price_amount: String,
-    pub price_symbol: String,
-    pub settlement_pledge_amount: String,
-    pub settlement_pledge_symbol: String,
-    pub lock_amount: String,
-    pub lock_symbol: String,
+    pub id: String,
+    pub user: TrackerDMCUser,
+    pub miner: TrackerDMCUser,
+    pub bill: TrackerDMCBill,
     pub state: u8,
-    pub deliver_start_date: String,
+    pub user_pledge_amount: String,
     pub latest_settlement_date: String,
+    pub miner_lock_pst_amount: String,
+    pub miner_lock_pst_symbol: String,
 }
 
 impl TrackerDMCOrder {
     pub fn get_space(&self) -> BuckyResult<u64> {
-        let pst: u64 = self.miner_pledge_amount.parse().map_err(|e| {
-            cyfs_err!(BuckyErrorCode::Failed, "parse {} failed {}", self.miner_pledge_amount.as_str(), e)
+        let pst: u64 = self.miner_lock_pst_amount.parse().map_err(|e| {
+            cyfs_err!(BuckyErrorCode::Failed, "parse {} failed {}", self.miner_lock_pst_amount.as_str(), e)
         })?;
         Ok(pst * 1024 * 1024 * 1024)
     }
@@ -871,7 +873,7 @@ impl<T: 'static + SignatureProvider> DMCTxSender for LocalDMCTxSender<T>  {
 
 #[derive(Serialize, Deserialize, Clone)]
 struct OrderResult {
-    find_dmc_order: Vec<TrackerDMCOrder>,
+    find_order: Vec<TrackerDMCOrder>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -910,40 +912,40 @@ impl<T: DMCTxSender> DMCClient<T> {
     }
 
     pub async fn get_user_orders(&self, _limit: Option<i32>) -> BuckyResult<Vec<TrackerDMCOrder>> {
-        let query = format!(r#"{{find_dmc_order(
+        let query = format!(r#"{{find_order(
                                     skip: 0,
                                     limit: 10,
-                                    order: "-createdAt,order_id",
+                                    order: "-createdAt,id",
                                     where: {{
                                         and:[
-                                            {{user: "{}"}},
+                                            {{user_id: "{}"}},
                                             {{state: 0}}
                                         ]
                                     }},
                             ){{
-                                order_id
-                                user
-                                miner
-                                bill_id
+                                id
+                                user {{id}}
+                                miner {{id}}
+                                bill {{id}}
                                 user_pledge_amount
                                 user_pledge_symbol
-                                miner_pledge_amount
-                                miner_pledge_symbol
                                 price_amount
                                 price_symbol
                                 settlement_pledge_amount
                                 settlement_pledge_symbol
-                                lock_amount
-                                lock_symbol
                                 state
                                 deliver_start_date
                                 latest_settlement_date
+                                miner_lock_pst_amount
+                                miner_lock_pst_symbol
+                                miner_lock_dmc_amount
+                                miner_lock_dmc_symbol
                             }}
                         }}"#, self.account_name.as_str());
         let url = format!("{}/1.1", self.tracker_server.as_str());
         for _ in 0..3 {
             return match http_post_request3(url.as_str(), query.as_bytes(), Some("application/graphql")).await {
-                Ok(FindDmcOrder{ data }) => Ok(data.find_dmc_order),
+                Ok(FindDmcOrder{ data }) => Ok(data.find_order),
                 Err(e) => {
                     if e.code() == BuckyErrorCode::ConnectFailed {
                         continue;
@@ -957,33 +959,33 @@ impl<T: DMCTxSender> DMCClient<T> {
 
 
     pub async fn get_miner_orders(&self, limit: Option<(u32, u32)>) -> BuckyResult<Vec<TrackerDMCOrder>> {
-        let query = format!(r#"{{find_dmc_order(
+        let query = format!(r#"{{find_order(
                                     skip: {},
                                     limit: {},
-                                    order: "-createdAt,order_id",
+                                    order: "-createdAt,id",
                                     where: {{
                                         and:[
-                                            {{miner: "{}"}}
+                                            {{miner_id: "{}"}}
                                         ]
                                     }},
                             ){{
-                                order_id
-                                user
-                                miner
-                                bill_id
+                                id
+                                user {{id}}
+                                miner {{id}}
+                                bill {{id}}
                                 user_pledge_amount
                                 user_pledge_symbol
-                                miner_pledge_amount
-                                miner_pledge_symbol
                                 price_amount
                                 price_symbol
                                 settlement_pledge_amount
                                 settlement_pledge_symbol
-                                lock_amount
-                                lock_symbol
                                 state
                                 deliver_start_date
                                 latest_settlement_date
+                                miner_lock_pst_amount
+                                miner_lock_pst_symbol
+                                miner_lock_dmc_amount
+                                miner_lock_dmc_symbol
                             }}
                         }}"#,
                             limit.unwrap_or((0, 100)).0,
@@ -992,7 +994,7 @@ impl<T: DMCTxSender> DMCClient<T> {
         let url = format!("{}/1.1", self.tracker_server.as_str());
         for _ in 0..3 {
             return match http_post_request3(url.as_str(), query.as_bytes(), Some("application/graphql")).await {
-                Ok(FindDmcOrder{ data }) => Ok(data.find_dmc_order),
+                Ok(FindDmcOrder{ data }) => Ok(data.find_order),
                 Err(e) => {
                     if e.code() == BuckyErrorCode::ConnectFailed {
                         continue;
@@ -1005,43 +1007,43 @@ impl<T: DMCTxSender> DMCClient<T> {
     }
 
     pub async fn get_order_by_id(&self, order_id: &str) -> BuckyResult<Option<TrackerDMCOrder>> {
-        let query = format!(r#"{{find_dmc_order(
+        let query = format!(r#"{{find_order(
                                     skip: 0,
                                     limit: 10,
-                                    order: "-createdAt,order_id",
+                                    order: "-createdAt,id",
                                     where: {{
                                         and:[
-                                            {{order_id: "{}"}}
+                                            {{id: "{}"}}
                                         ]
                                     }},
                             ){{
-                                order_id
-                                user
-                                miner
-                                bill_id
+                                id
+                                user {{id}}
+                                miner {{id}}
+                                bill {{id}}
                                 user_pledge_amount
                                 user_pledge_symbol
-                                miner_pledge_amount
-                                miner_pledge_symbol
                                 price_amount
                                 price_symbol
                                 settlement_pledge_amount
                                 settlement_pledge_symbol
-                                lock_amount
-                                lock_symbol
                                 state
                                 deliver_start_date
                                 latest_settlement_date
+                                miner_lock_pst_amount
+                                miner_lock_pst_symbol
+                                miner_lock_dmc_amount
+                                miner_lock_dmc_symbol
                             }}
                         }}"#, order_id);
         let url = format!("{}/1.1", self.tracker_server.as_str());
         for _ in 0..3 {
             return match http_post_request3(url.as_str(), query.as_bytes(), Some("application/graphql")).await {
                 Ok(FindDmcOrder{ data }) => {
-                    if data.find_dmc_order.len() == 0 {
+                    if data.find_order.len() == 0 {
                         Ok(None)
                     } else {
-                        Ok(Some(data.find_dmc_order[0].clone()))
+                        Ok(Some(data.find_order[0].clone()))
                     }
                 },
                 Err(e) => {
