@@ -9,7 +9,7 @@ build = "build.rs"
 [dependencies]
 dmc-dsg-base = {path = "../dmc-dsg-base"}
 cyfs-base = "0.6"
-cyfs-dsg-client = "0.6"
+cyfs-dsg-client = {path = "../../cyfs-dsg/src/cyfs-dsg-client"}
 cyfs-lib = "0.7"
 cyfs-debug = "0.6"
 cyfs-core = "0.6"

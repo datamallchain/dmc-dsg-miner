@@ -657,7 +657,7 @@ impl<CLIENT: CyfsClient,
             return if &syncing_id == state_id {
                 Ok(false)
             } else {
-                Err(app_err!(DMC_DSG_ERROR_IS_SYNCING, "contract {} is syncing {}", contract_id.to_string(), syncing_id.to_string()))
+                Err(crate::app_err!(DMC_DSG_ERROR_IS_SYNCING, "contract {} is syncing {}", contract_id.to_string(), syncing_id.to_string()))
             }
         }
 
@@ -701,11 +701,11 @@ impl<CLIENT: CyfsClient,
         let mut conn = self.meta_store.create_meta_connection().await?;
         let contract_id = conn.get_contract_id_by_dmc_order(order).await?;
         if contract_id.is_none() {
-            return Err(cyfs_err!(BuckyErrorCode::NotFound, "can't find order {}'s contract", order))
+            return Err(crate::cyfs_err!(BuckyErrorCode::NotFound, "can't find order {}'s contract", order))
         }
         let state_id = conn.get_contract_state_id(contract_id.as_ref().unwrap()).await?;
         if state_id.is_none() {
-            return Err(cyfs_err!(BuckyErrorCode::NotFound, "can't find order {}'s state", order))
+            return Err(crate::cyfs_err!(BuckyErrorCode::NotFound, "can't find order {}'s state", order))
         }
         Ok((contract_id.unwrap(), state_id.unwrap()))
     }

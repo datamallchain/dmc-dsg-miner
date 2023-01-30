@@ -1327,8 +1327,6 @@ dependencies = [
 [[package]]
 name = "cyfs-dsg-client"
 version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cfcd8e85d18b2eac4652961d94b9d27bf3dea43319bde0ba32218cd826e7d85"
 dependencies = [
  "aes 0.7.5",
  "async-recursion",
@@ -1351,6 +1349,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.8.2",
+ "tracing",
 ]
 
 [[package]]

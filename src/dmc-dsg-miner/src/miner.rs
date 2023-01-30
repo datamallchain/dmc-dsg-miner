@@ -8,6 +8,8 @@ use cyfs_util::*;
 use cyfs_dsg_client::*;
 use crate::*;
 use dmc_dsg_base::*;
+use dmc_dsg_base::DSGJSON;
+use dmc_dsg_base::DSGJSONType;
 
 type Miner = DmcDsgMiner<SharedCyfsStack, CyfsStackMetaConnection, NocChunkStore, CyfsStackFileDownloader, RemoteDMCTxSender<SharedCyfsStack>>;
 

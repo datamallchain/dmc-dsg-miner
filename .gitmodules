@@ -1,0 +1,3 @@
+[submodule "cyfs-dsg"]
+	path = cyfs-dsg
+	url = https://github.com/buckyos/cyfs-dsg.git

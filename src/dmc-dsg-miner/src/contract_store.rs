@@ -200,7 +200,7 @@ impl TryFrom<i64> for ContractStatus {
             1 => Ok(ContractStatus::Syncing),
             2 => Ok(ContractStatus::Storing),
             _ => {
-                Err(cyfs_err!(BuckyErrorCode::UnSupport, "unknown value {}", v))
+                Err(crate::cyfs_err!(BuckyErrorCode::UnSupport, "unknown value {}", v))
             }
         }
     }
