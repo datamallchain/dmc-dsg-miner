@@ -115,15 +115,15 @@ impl App {
                     self.get_http_domain().await?,
                     dmc_sender,
                     self.challenge_check_interval)?;
+                let mut index = 5;
                 loop {
-                    let mut index = 1;
                     if let Err(e) = self.set_miner_dec_id().await {
                         log::error!("set_miner_dec_id err {}", e);
-                        async_std::task::sleep(Duration::from_secs(5 * index)).await;
-                        index *= 2;
                         if index > 720 {
                             index = 720;
                         }
+                        async_std::task::sleep(Duration::from_secs(index)).await;
+                        index *= 2;
                         continue;
                     }
                     break;

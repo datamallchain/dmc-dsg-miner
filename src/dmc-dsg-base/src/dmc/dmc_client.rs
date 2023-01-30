@@ -175,7 +175,7 @@ impl DMCDeserialize for AddMerkle {
         Ok(Self {
             sender: Name::dmc_deserialize(buf)?,
             order_id: buf.get_u64()?,
-            merkle_root: HashValue::from(buf.get_array(32)?),
+            merkle_root: HashValue::try_from(buf.get_array(32)?)?,
             data_block_count: buf.get_u64()?
         })
     }
@@ -206,7 +206,7 @@ impl DMCDeserialize for ChallengeReq {
             sender: Name::dmc_deserialize(buf)?,
             order_id: buf.get_u64()?,
             data_id: buf.get_u64()?,
-            hash_data: HashValue::from(buf.get_array(32)?),
+            hash_data: HashValue::try_from(buf.get_array(32)?)?,
             nonce: buf.get_string()?
         })
     }
@@ -257,7 +257,7 @@ impl DMCDeserialize for ChallengeResp {
         Ok(Self {
             sender: Name::dmc_deserialize(buf)?,
             order_id: buf.get_u64()?,
-            reply_hash: HashValue::from(buf.get_array(32)?)
+            reply_hash: HashValue::try_from(buf.get_array(32)?)?
         })
     }
 }

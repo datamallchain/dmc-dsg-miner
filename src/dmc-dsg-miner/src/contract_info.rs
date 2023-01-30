@@ -17,7 +17,7 @@ impl ProtobufTransform<crate::protos::ContractInfo> for ContractInfo {
         Ok(Self {
             contract_status: ContractStatus::try_from(value.contract_status as i64)?,
             latest_check_time: value.latest_check_time,
-            meta_merkle: value.meta_merkle.iter().map(|v| HashValue::from(v.as_slice())).collect(),
+            meta_merkle: value.meta_merkle.iter().map(|v| HashValue::try_from(v.as_slice()).unwrap()).collect(),
             stored_size: value.stored_size,
             sum_size: value.sum_size,
         })

@@ -4,7 +4,7 @@ use cyfs_lib::*;
 use std::{sync::Arc};
 use std::str::FromStr;
 use cyfs_base::{BuckyResult, ObjectId};
-use cyfs_core::{DecApp, DecAppObj, get_system_dec_app};
+use cyfs_core::{DecApp, DecAppObj};
 use cyfs_util::get_app_data_dir;
 use cyfs_util::process::ProcessAction;
 use config::builder::DefaultState;
