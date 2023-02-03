@@ -83,6 +83,7 @@ impl DMCDsgService {
         self.stack.set_end_point(listener);
         let mut access = AccessString::new(0);
         access.set_group_permissions(AccessGroup::CurrentDevice, AccessPermissions::Full);
+        access.set_group_permissions(AccessGroup::OthersDec, AccessPermissions::Full);
         self.stack.listen(access).await?;
         Ok(())
     }

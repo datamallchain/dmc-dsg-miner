@@ -363,7 +363,7 @@ impl Pledge {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DMCOrder {
-    pub order_id: String,
+    pub order_id: u64,
     pub user: String,
     pub miner: String,
     pub bill_id: String,
@@ -1191,7 +1191,7 @@ impl<T: DMCTxSender> DMCClient<T> {
         let req = GetTableRowsReq {
             json: true,
             code: "dmc.token",
-            table: "stakerec",
+            table: "billrec",
             scope: scope.as_str(),
             index_position: None,
             key_type: None,
