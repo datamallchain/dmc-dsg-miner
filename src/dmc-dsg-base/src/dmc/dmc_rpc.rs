@@ -69,8 +69,11 @@ pub struct ActionTrace {
     pub producer_block_id: Option<String>,
     //pub account_ram_deltas: Vec<AccountDelta>,
     //pub account_disk_deltas: Vec<AccountDelta>,
+    // pub except: E,
     pub error_code: Option<i64>,
+    // pub return_value: Option<R>,
     pub return_value_hex_data: Option<String>,
+    // pub return_value_data: Option<RD>,
     pub inline_traces: Option<Vec<ActionTrace>>
 }
 
@@ -138,24 +141,19 @@ pub struct GetRawAbiResult {
 
 #[derive(Serialize, Deserialize)]
 pub struct GetInfoResult {
-    // pub server_version: String,
+    pub server_version: String,
     pub chain_id: String,
     pub head_block_num: i64,
     pub last_irreversible_block_num: i64,
     pub last_irreversible_block_id: String,
     pub last_irreversible_block_time: Option<String>,
-    // pub head_block_id: String,
-    // pub head_block_time: String,
-    // pub head_block_producer: String,
-    // pub virtual_block_cpu_limit: i64,
-    // pub virtual_block_net_limit: i64,
-    // pub block_cpu_limit: i64,
-    // pub block_net_limit: i64,
-    // pub server_version_string: Option<String>,
-    // pub fork_db_head_block_num: Option<i64>,
-    // pub fork_db_head_block_id: Option<String>,
-    // pub server_full_version_string: Option<String>,
-    // pub first_block_num: Option<i64>,
+    pub block_cpu_limit: i64,
+    pub block_net_limit: i64,
+    pub server_version_string: Option<String>,
+    pub fork_db_head_block_num: Option<i64>,
+    pub fork_db_head_block_id: Option<String>,
+    pub server_full_version_string: Option<String>,
+    pub first_block_num: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -381,15 +379,6 @@ pub struct GetBlockInfoResult {
 #[derive(Serialize, Deserialize)]
 pub struct SignedBlockHeader {
     pub timestamp: String,
-    pub producer: String,
-    pub confirmed: i64,
-    pub previous: String,
-    pub transaction_mroot: String,
-    pub action_mroot: String,
-    pub schedule_version: i64,
-    // pub new_producers: Option<ProducerScheduleType>,
-    // pub header_extensions: Vec<(i64, String)>,
-    // pub producer_signature: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -443,18 +432,7 @@ pub struct StateExtension {
 pub struct GetBlockHeaderStateResult {
     pub id: String,
     pub header: SignedBlockHeader,
-    // pub pending_schedule: ScheduleInfo,
-    // pub activated_protocol_features: ProtocolFeatureActivationSet,
-    // pub additional_signatures: Vec<String>,
     pub block_num: i64,
-    pub dpos_proposed_irreversible_blocknum: i64,
-    pub dpos_irreversible_blocknum: i64,
-    // pub active_schedule: ProducerAuthoritySchedule,
-    // pub blockroot_merkle: IncrementalMerkle,
-    // pub producer_to_last_produced: Vec<(String, i64)>,
-    // pub producer_to_last_implied_irb: Vec<(String, i64)>,
-    // pub confirm_count: Vec<i64>,
-    // pub state_extension: Option<(i64, StateExtension)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -466,7 +444,6 @@ pub struct GetBlockResult {
     pub transaction_mroot: String,
     pub action_mroot: String,
     pub schedule_version: i64,
-    // pub new_producers: Option<ProducerScheduleType>,
     pub producer_signature: String,
     pub id: String,
     pub block_num: i64,
@@ -844,7 +821,7 @@ impl DMCRpc {
     }
 
     pub async fn get_table_rows<'a, T: for <'de> Deserialize<'de>>(&self,
-                                                                   req: &GetTableRowsReq<'a>) -> BuckyResult<GetTableRowsResult<T>> {
+                                req: &GetTableRowsReq<'a>) -> BuckyResult<GetTableRowsResult<T>> {
         let url = format!("{}/v1/chain/get_table_rows", self.server.as_str());
         let data = serde_json::to_string(req).map_err(|e| {
             cyfs_err!(BuckyErrorCode::Failed, "encode json err {}", e)
@@ -865,7 +842,7 @@ impl DMCRpc {
     }
 
     pub async fn get_kv_table_rows<'a, T: for <'de> Deserialize<'de>>(&self,
-                                                                      req: &GetKVTableRowsReq<'a>) -> BuckyResult<GetTableRowsResult<T>> {
+                                   req: &GetKVTableRowsReq<'a>) -> BuckyResult<GetTableRowsResult<T>> {
         let url = format!("{}/v1/chain/get_kv_table_rows", self.server.as_str());
         let data = serde_json::to_string(req).map_err(|e| {
             cyfs_err!(BuckyErrorCode::Failed, "encode json err {}", e)
@@ -886,7 +863,7 @@ impl DMCRpc {
     }
 
     pub async fn get_table_by_scope<'a>(&self,
-                                        req: &GetTableByScopeReq<'a>) -> BuckyResult<GetTableByScopeResult> {
+                                    req: &GetTableByScopeReq<'a>) -> BuckyResult<GetTableByScopeResult> {
         let url = format!("{}/v1/chain/get_table_by_scope", self.server.as_str());
         let data = serde_json::to_string(req).map_err(|e| {
             cyfs_err!(BuckyErrorCode::Failed, "encode json err {}", e)
@@ -1092,6 +1069,8 @@ impl DMCRpc {
                 packed_context_free_data: packed_context_free_data,
                 packed_trx: packed_trx
         };
+        // let data_str = data.to_string();
+        // println!("{}", data_str);
 
         for _ in 0..3 {
             return match http_post_json2(url.as_str(), data.clone()).await {
@@ -1105,5 +1084,70 @@ impl DMCRpc {
             }
         }
         Err(cyfs_err!(BuckyErrorCode::Failed, "push_transaction failed"))
+    }
+}
+
+#[cfg(test)]
+mod test_client {
+    use std::str::FromStr;
+    use crate::*;
+
+    #[test]
+    fn test_create_account() {
+        async_std::task::block_on(async {
+            let private_key = DMCPrivateKey::from_str("5J5dufru651pFf2vKy87ig2TkJHC6C6ZNCfXXpmti9zeeGzd9EZ").unwrap();
+            let public_key = private_key.get_public_key().to_legacy_string().unwrap();
+            let client = DMCRpc::new("http://154.39.158.47:8080");
+            client.create_account("wugren123453", public_key.as_str(), "kQkAjnFj8vI=").await.unwrap();
+        });
+    }
+
+    #[test]
+    fn test_get_account() {
+        async_std::task::block_on(async {
+            let client = DMCRpc::new("http://154.39.158.47:8801");
+            let info = client.get_account::<Option<String>, Option<String>>("wugren123453").await.unwrap();
+            println!("{}", info.account_name);
+
+            let mut abi = client.get_bin_abi("dmc.token").await.unwrap();
+
+            let mut buf = SerialBuffer::new(&mut abi.abi);
+            AbiDef::dmc_deserialize(&mut buf).unwrap();
+        })
+    }
+
+    #[test]
+    fn test_get_code() {
+        async_std::task::block_on(async {
+            let client = DMCRpc::new("http://154.39.158.47:8801");
+            let ret = client.get_code("wugren123453").await.unwrap();
+            println!("{}", serde_json::to_string(&ret).unwrap());
+            let ret = client.get_code("dmc.token").await.unwrap();
+            println!("{}", serde_json::to_string(&ret.abi).unwrap());
+
+            let ret = client.get_account::<Option<String>, Option<String>>("wugren123453").await.unwrap();
+            println!("{}", serde_json::to_string(&ret).unwrap());
+
+            let ret = client.get_account::<Option<String>, Option<String>>("dmc.token").await.unwrap();
+            println!("{}", serde_json::to_string(&ret).unwrap());
+
+            let ret = client.get_table_rows::<MinerInfo>(&GetTableRowsReq {
+                json: true,
+                code: "dmc.token",
+                table: "dmcmaker",
+                scope: "dmc.token",
+                index_position: None,
+                key_type: None,
+                encode_type: None,
+                lower_bound: None,
+                upper_bound: None,
+                limit: None,
+                reverse: None,
+                show_payer: None
+            }).await.unwrap();
+            println!("{}", serde_json::to_string(&ret).unwrap());
+            // let j = std::fs::read_to_string(r"C:\Users\wugren\Desktop\test.json").unwrap();
+            // let abi: AbiDef = serde_json::from_str(j.as_str()).unwrap();
+        })
     }
 }
