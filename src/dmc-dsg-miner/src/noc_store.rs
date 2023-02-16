@@ -61,7 +61,10 @@ impl NocChunkStore {
             },
             object_id,
             range: crange,
-            inner_path: None }).await?;
+            inner_path: None,
+            context: None,
+            group: None,
+        }).await?;
 
         Ok(rsp.data)
     }

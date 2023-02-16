@@ -44,7 +44,7 @@ impl FileDownloader for CyfsStackFileDownloader {
         let file_id = self.stack.put_object_to_noc(&file, Some(AccessString::full())).await?;
         let mut is_timeout = false;
 
-        let task_id = self.stack.trans().create_task(&TransCreateTaskOutputRequest {
+        let task_id = self.stack.trans().create_task(TransCreateTaskOutputRequest {
             common: NDNOutputRequestCommon {
                 req_path: None,
                 dec_id: Some(self.dec_id.clone()),
@@ -56,12 +56,13 @@ impl FileDownloader for CyfsStackFileDownloader {
             object_id: file_id,
             local_path: PathBuf::new(),
             device_list: source_list,
-            context_id: None,
-            auto_start: true
+            group: None,
+            auto_start: true,
+            context: None,
         }).await?.task_id;
 
         loop {
-            let state = self.stack.trans().get_task_state(&TransGetTaskStateOutputRequest {
+            let state = self.stack.trans().get_task_state(TransGetTaskStateOutputRequest {
                 common: NDNOutputRequestCommon {
                     req_path: None,
                     dec_id: Some(self.dec_id.clone()),
@@ -73,7 +74,7 @@ impl FileDownloader for CyfsStackFileDownloader {
                 task_id: task_id.clone()
             }).await?;
 
-            match state {
+            match state.state {
                 TransTaskState::Pending => {
 
                 }
@@ -100,7 +101,7 @@ impl FileDownloader for CyfsStackFileDownloader {
             }
             async_std::task::sleep(Duration::from_secs(1)).await;
         }
-        self.stack.trans().delete_task(&TransTaskOutputRequest {
+        self.stack.trans().delete_task(TransTaskOutputRequest {
             common: NDNOutputRequestCommon {
                 req_path: None,
                 dec_id: Some(self.dec_id.clone()),
