@@ -4,7 +4,7 @@ use std::ops::Range;
 use std::sync::{Arc, Mutex};
 use cyfs_base::*;
 use cyfs_chunk_lib::{Chunk, CHUNK_SIZE, MemChunk};
-use cyfs_dsg_client::{DsgContractObject, DsgContractObjectRef};
+use cyfs_dsg_client::{DsgContractObject, DsgContractObjectRef, DsgContractState, DsgContractStateObjectRef};
 use crate::*;
 use dmc_dsg_base::*;
 
@@ -119,11 +119,12 @@ impl<
                 let witness = contract_ref.witness();
                 let chunk_size = witness.chunk_size.unwrap_or(CHUNK_SIZE as u32);
                 let challenge_ret = self.dmc_client.get_challenge_info(contract.desc().content().witness.order_id.as_str(), None).await?;
-                log::debug!("challenge ret {}", serde_json::to_string(&challenge_ret).unwrap());
+
                 if challenge_ret.rows.len() == 0 {
                     continue;
                 }
 
+                log::info!("challenge ret {}", serde_json::to_string(&challenge_ret).unwrap());
                 let challenge = &challenge_ret.rows[0];
                 if challenge.state == DMCChallengeState::ChallengeRequest as u32 {
                     let state = {
@@ -149,8 +150,39 @@ impl<
                                                                              chunk_size).await?;
                             data
                         };
-                        let hash = hash_data(vec![data.as_slice(), challenge.nonce.as_bytes()].concat().as_slice());
-                        self.dmc_client.add_challenge_resp(witness.order_id.as_str(), hash).await?;
+                        let mut hash = hash_data(vec![data.as_slice(), challenge.nonce.as_bytes()].concat().as_slice());
+                        let check_hash = hash_data(hash.as_slice());
+                        if check_hash.to_string() != challenge.hash_data {
+                            let contract_state = conn.get_contract_state(contract_id).await?;
+                            if contract_state.is_none() {
+                                log::error!("contract_id {} state is none", contract_id.to_string());
+                                continue;
+                            }
+                            let mut cur_state = contract_state.unwrap();
+                            let chunk_list = loop {
+                                let cur_state_ref = DsgContractStateObjectRef::from(&cur_state);
+                                if let DsgContractState::DataSourceChanged(changed) = cur_state_ref.state() {
+                                    break changed.chunks;
+                                } else if cur_state_ref.prev_state_id().is_some() {
+                                    let state = conn.get_state(cur_state_ref.prev_state_id().unwrap().clone()).await?;
+                                    if state.is_none() {
+                                        log::error!("can't find contract_id {} state {}", contract_id.to_string(), cur_state_ref.prev_state_id().unwrap().to_string());
+                                        continue;
+                                    }
+                                    cur_state = state.unwrap();
+                                }
+                            };
+                            let data = self.raw_data_store.get_contract_data(chunk_list,
+                                                                             Range { start: (challenge.data_id - meta_max_id) * DSG_CHUNK_PIECE_SIZE as u64, end: ((challenge.data_id - meta_max_id) + 1) * DSG_CHUNK_PIECE_SIZE as u64 },
+                                                                             chunk_size).await?;
+                            hash = hash_data(vec![data.as_slice(), challenge.nonce.as_bytes()].concat().as_slice());
+                        }
+                        if let Err(e) = self.dmc_client.add_challenge_resp(witness.order_id.as_str(), hash).await {
+                            if e.code() != BuckyErrorCode::InvalidData {
+                                log::error!("add_challenge_resp order_id {} failed {}", witness.order_id.as_str(), e);
+                                continue;
+                            }
+                        }
                         let mut state = self.challenge_state.lock().unwrap();
                         state.insert(challenge.order_id.to_string().clone(), ChallengeState::RespChallenge);
                     } else if state.unwrap() == ChallengeState::RespChallenge {
