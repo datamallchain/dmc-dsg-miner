@@ -132,8 +132,7 @@ impl<
                         state.get(challenge.order_id.to_string().as_str()).map(|state| state.clone())
                     };
                     let contract_info = conn.get_contract_info(contract_id).await?;
-                    // let meta_max_id = contract_info.meta_merkle.len() as u64 * chunk_size as u64 / DSG_CHUNK_PIECE_SIZE;
-                    let meta_max_id = 0;
+                    let meta_max_id = contract_info.meta_merkle.len() as u64 * chunk_size as u64 / DSG_CHUNK_PIECE_SIZE;
                     if state.is_none() {
                         let data = if challenge.data_id < meta_max_id {
                             let meta_data = conn.get_contract_meta_data(contract_id).await?;
